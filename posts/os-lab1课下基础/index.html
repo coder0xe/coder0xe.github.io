@@ -1,0 +1,339 @@
+<!doctype html><html lang=en dir=auto data-theme=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>OS-lab1课下基础 | coder0xe's blog</title><meta name=keywords content="操作系统"><meta name=description content="OS-lab1"><meta name=author content="sudo"><link rel=canonical href=https://coder0xe.github.io/posts/os-lab1%E8%AF%BE%E4%B8%8B%E5%9F%BA%E7%A1%80/><link crossorigin=anonymous href=/assets/css/stylesheet.e4a36188e2c44563c1cc5ed1a2d0b8451a4f68c685114d738b97609f82dae050.css integrity="sha256-5KNhiOLERWPBzF7RotC4RRpPaMaFEU1zi5dgn4La4FA=" rel="preload stylesheet" as=style><link rel=icon href=https://coder0xe.github.io/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://coder0xe.github.io/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://coder0xe.github.io/favicon-32x32.png><link rel=apple-touch-icon href=https://coder0xe.github.io/apple-touch-icon.png><link rel=mask-icon href=https://coder0xe.github.io/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://coder0xe.github.io/posts/os-lab1%E8%AF%BE%E4%B8%8B%E5%9F%BA%E7%A1%80/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51);color-scheme:dark}.list{background:var(--theme)}.toc{background:var(--entry)}}@media(prefers-color-scheme:light){.list::-webkit-scrollbar-thumb{border-color:var(--code-bg)}}</style></noscript><script>localStorage.getItem("pref-theme")==="dark"?document.querySelector("html").dataset.theme="dark":localStorage.getItem("pref-theme")==="light"?document.querySelector("html").dataset.theme="light":window.matchMedia("(prefers-color-scheme: dark)").matches?document.querySelector("html").dataset.theme="dark":document.querySelector("html").dataset.theme="light"</script><meta property="og:url" content="https://coder0xe.github.io/posts/os-lab1%E8%AF%BE%E4%B8%8B%E5%9F%BA%E7%A1%80/"><meta property="og:site_name" content="coder0xe's blog"><meta property="og:title" content="OS-lab1课下基础"><meta property="og:description" content="OS-lab1"><meta property="og:locale" content="zh-CN"><meta property="og:type" content="article"><meta property="article:section" content="posts"><meta property="article:published_time" content="2024-03-18T10:30:58+08:00"><meta property="article:modified_time" content="2024-03-18T10:30:58+08:00"><meta property="article:tag" content="Mar"><meta name=twitter:card content="summary"><meta name=twitter:title content="OS-lab1课下基础"><meta name=twitter:description content="OS-lab1"><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Posts","item":"https://coder0xe.github.io/posts/"},{"@type":"ListItem","position":2,"name":"OS-lab1课下基础","item":"https://coder0xe.github.io/posts/os-lab1%E8%AF%BE%E4%B8%8B%E5%9F%BA%E7%A1%80/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"OS-lab1课下基础","name":"OS-lab1课下基础","description":"OS-lab1","keywords":["操作系统"],"articleBody":"OS ：lab1课下基础 1. 操作系统的启动 : boot 1.1 概述 ​\t将硬件初始化的相关工作称为bootloader程序，将bootloader程序放在非易失存储器中(ROM/FLASH)，将操作系统内核放在磁盘中。\n将硬件初始化相关工作从操作系统中抽离出来放在bootloader中实现。实现了硬件启动和软件启动的分离。即由bootloader实现硬件启动，操作系统内核实现软件启动，这样负责硬件启动的指令不多，需要的存储空间不大，可以存在容量较小的ROM或FLASH中 bootloader在硬件初始化之后，需要为软件启动（操作系统内核的功能）做准备，将内核镜像从存放他的存储器（例如磁盘）中读到RAM中。bootloader需要将内核镜像加载到内存中，就可以选择用哪一个内核镜像进行加载，实现多重开机的功能，在一个硬件上选择运行不同的操作系统。 bootloader划分了硬件启动和软件启动的边界，bootloader主要负责硬件启动相关工作，操作系统内核专注于软件启动以及对用户提供服务的工作。简化操作系统的开发和移植。 1.2 bootloader ​\tbootloader需要正确地找到内核并加载执行。bootloader的实现依赖于CPU的体系结构，分为stage1，stage2两个部分。\n1.3 QEMU中操作系统的启动 ​\tQEMU已经提供了bootloader的引导功能，支持加载ELF格式的内核。启动流程被简化为加载内核到内存，之后跳转到内核的入口。\n2. ELF 2.1 编译链接 ​\t我们知道源代码文件需要经过编译链接两个阶段才能变成可执行文件来运行。\n编译-c：源代码被翻译为二进制指令，得到目标文件\n链接：将多个目标文件链接为可执行文件\n将编译好的目标文件反汇编：objdump指令\nobjdump -DS \u003c要反汇编的目标文件名\u003e \u003e \u003c导出文本文件名\u003e ​\t以简单的代码为示例\n#include int main() { printf(\"hello,world!\\n\"); return 0; } ​\t这里我们知道，头文件中只包含函数的声明，而不包括函数的定义，因此在预处理阶段（替换头文件、宏定义过程）只会将printf替换为他的声明。最后在链接阶段才会替换为printf的实现。即在编译的最后，链接器将所有的目标文件链接在一起，将 之前未填写的地址等信息填上，形成最终的可执行文件，这就是链接的过程\n2.2 ELF ​\tELF是一种文件格式，即Executable and Linkable Format。ELF是Unix系统中一种常见的文件格式，包括可重定位文件(relocatable)，可执行文件(executable)，共享对象文件(shared object)。其中可重定位文件即为我们熟悉的.o文件，后两种文件都需要对.o文件进行链接才能产生。\n2.2.1 段和节 段：segment 节：section ELF 官方文档中对于section segment的解释\n所谓section与segment是同一数据的两种视图\n左侧是链接视图：使用section进行链接\n右侧是执行视图：使用segment运行\n每个segment中包含一个或多个section\n节头表(Section header table)：包含程序中各个节(section)的信息，在程序编译链接时使用\n段头表(Program header table)：包含程序中各个段(segment)的信息，在运行时使用\n编译-\u003e链接-\u003e运行\n编译：源代码-\u003e可执行代码（机器码，目标文件或可执行文件中就是机器码）\n链接：链接器将性质相同的sections归类合并为一个segment，例如.text,.data,.bss等都是典型的需要加载的section，就会被安排到LOAD segment\n.text是指可执行代码，也就是机器码，编译时确定（C、汇编等等语言经过编译都转化为机器码） .data存放在编译时就能确定的数据（而非运行时），如已初始化的全局变量和静态变量 .bss保存未初始化的全局变量和静态变量 运行：使用各个segement进行运行\n​\t从编译-\u003e链接-\u003e运行的角度看section和segment，以简单的hello world程序为例\n使用-c选项进行编译\n通过readelf -S 对产生的可重定向文件(.o)进行查看，可以发现程序经过编译之后已经被划分为了不同的段，其中有我们熟知的.text，.data等，这就是编译产生的不同类别的section。.text中的内容为可执行代码，即机器码。.data中的内容为在编译阶段中就可以确定的变量值，例如全局变量等。\n通过上面的实验已经知道，对源代码文件的编译会将源代码划分为不同的section，那么在链接的过程中就会对不同源代码编译后产生的相同类别的section进行合并，例如将不同代码中的text段合并为一个text段。\nsegment中有几种分区，分别存放不同种类的section。常见的有NOTE segment和LOAD segment。NOTE segment中存放了调试的一些信息，例如dwarf或者gnu_version、gnu_hash等，我们常见的.data,.text会被存放在LOAD segment中。下面是对前程序进行链接后的结果，同样使用readelf查看section信息(其中.note前缀等即为NOTE segment区域)\nps:后续在课件中找到的图\n2.2.1 ELF结构 主要结构有ELF头，段头表，节头表等，我们可以结合课程组给出的elf.h来理解各个部分的主要结构。\nELF header(Ehdr) ：ELF文件头\ntypedef struct { unsigned char e_ident[EI_NIDENT]; /* Magic number and other info */ Elf32_Half e_type;\t/* Object file type */ Elf32_Half e_machine;\t/* Architecture */ Elf32_Word e_version;\t/* Object file version */ Elf32_Addr e_entry;\t/* Entry point virtual address */ Elf32_Off e_phoff;\t/* Program header table file offset */ Elf32_Off e_shoff;\t/* Section header table file offset */ Elf32_Word e_flags;\t/* Processor-specific flags */ Elf32_Half e_ehsize;\t/* ELF header size in bytes */ Elf32_Half e_phentsize;\t/* Program header table entry size */ Elf32_Half e_phnum;\t/* Program header table entry count */ Elf32_Half e_shentsize;\t/* Section header table entry size */ Elf32_Half e_shnum;\t/* Section header table entry count */ Elf32_Half e_shstrndx;\t/* Section header string table index */ } Elf32_Ehdr; 对于ELF文件头的定义是一个结构体，名为Elf32_Ehdr。我们只关注结构体中比较重要的几个变量\nElf32_Off e_phoff ：段头表相对文件的偏移量 Elf32_Off e_shoff : 节头表相对文件的偏移量 我们依据以上两个变量可以找到段头表或节头表第一项的位置，再向下遍历即可得到表中的每一项 Elf32_Half e_phentsize : entry size 即段头表中每一项（每一个段头program header : phdr，描述相应段的信息）的大小 Elf32_Half e_phnum : 段头表中表项的个数 Elf32_Half e_shentsize : 节头表中每一项（每一个节头 section header : shdr，描述相应节的信息）的大小 Elf32_Half e_shnum : 节头表中表项的个数 program header (phdr) : 段头\ntypedef struct { Elf32_Word p_type; /* Segment type */ Elf32_Off p_offset; /* Segment file offset */ Elf32_Addr p_vaddr; /* Segment virtual address */ Elf32_Addr p_paddr; /* Segment physical address */ Elf32_Word p_filesz; /* Segment size in file */ Elf32_Word p_memsz; /* Segment size in memory */ Elf32_Word p_flags; /* Segment flags */ Elf32_Word p_align; /* Segment alignment */ } Elf32_Phdr; 每一个段头是段头表中的一项(entry)，他描述了一段的信息\nsection header (shdr) : 节头\ntypedef struct { Elf32_Word sh_name;\t/* Section name */ Elf32_Word sh_type;\t/* Section type */ Elf32_Word sh_flags;\t/* Section flags */ Elf32_Addr sh_addr;\t/* Section addr */ Elf32_Off sh_offset;\t/* Section offset */ Elf32_Word sh_size;\t/* Section size */ Elf32_Word sh_link;\t/* Section link */ Elf32_Word sh_info;\t/* Section extra info */ Elf32_Word sh_addralign; /* Section alignment */ Elf32_Word sh_entsize;\t/* Section entry size */ } Elf32_Shdr; 每一个节头是节头表中的一项，他描述了一节的信息\n2.2.3 Exercise 1.1 中的一些问题 ​\tExercise1.1中，要求我们完成一个解析ELF文件的C代码文件readelf.c，更准确的说是要求我们完成对节头表的遍历，思路上不困难，即先根据首地址和节头表的偏移量计算出节头表中第一项的位置，之后遍历后边表项即可，真正让人头疼的是一些C语言指针问题，先给出源代码。\nint readelf(const void *binary, size_t size) { Elf32_Ehdr *ehdr = (Elf32_Ehdr *)binary; if (!is_elf_format(binary, size)) { fputs(\"not an elf file\\n\", stderr); return -1; } const void *sh_table; Elf32_Half sh_entry_count; Elf32_Half sh_entry_size; sh_table = (const void*)ehdr + ehdr-\u003ee_shoff; sh_entry_count = ehdr-\u003ee_shnum; sh_entry_size = ehdr-\u003ee_shentsize; for (int i = 0; i \u003c sh_entry_count; i++) { const Elf32_Shdr *shdr; unsigned int addr; /* Exercise 1.1: Your code here. (2/2) */ shdr = (const Elf32_Shdr*)sh_table + i; addr = shdr-\u003esh_addr; printf(\"%d:0x%x\\n\", i, addr); } return 0; } 关于结构体指针：结构体指针引用其中变量使用箭头表示\nsh_entry_count = ehdr-\u003ee_shnum 关于指针的加减运算：指针加减运算移动的字节数为指针所指向的元素类型的字节数乘上偏移量，即 $$ Type * p\\space + \\space off \\space : \\space sizeof(Type)*off \\space bytes $$\n关于指针的类型转换，在此题中出现的是有类型和无类型之间的转换，都用到了强制类型转换\nsh_table = (const void*)ehdr + ehdr-\u003ee_shoff; shdr = (const Elf32_Shdr*)sh_table + i; 我们注意到这两处都涉及到指针的运算，若不对指针类型进行转换则移动字节会以原来类型进行移动\n关于GNU中对于void*元素类型的规定，我们注意到\nsh_table = (const void*)ehdr + ehdr-\u003ee_shoff; 那么void*所指代的元素类型占多大字节？在GNU中规定占一个字节\n可以使用系统自带的readelf命令进行验证\nreadelf -S 查看节信息\nreadelf -l 查看段信息\nOffset代表该段数据相对于ELF文件的偏移 VirtAddr代表该段数据最终被加载到内存的位置 FileSiz代表该段数据在文件中所占的大小 MemSiz代表该段数据在内存中所占的大小 注：MemSiz \u003e= FileSiz C语言中未初始化的全局变量，我们需要为其分配内存，但它 又不需要被初始化成特定数据。因此，在可执行文件中也只记录它需要占用内存(MemSiz)， 但在文件中却没有相应的数据（因为它并不需要初始化成特定数据）。故而在这种情况下， MemSiz会大于FileSiz。这也解释了，为什么C语言中全局变量会有默认值0。这是因为 操作系统在加载时将所有未初始化的全局变量所占的内存统一填了0\n3. MIPS内存布局 3.1 MIPS-32内存 程序中使用的地址被称为虚拟地址、程序地址或逻辑地址，处理器发往总线的地址为物理地址，需要通过CPU中的MMU单元进行转换(Memory Management Unit)，全部虚拟地址构成了虚拟地址空间，本实验中32位MIPS操作系统的虚拟地址空间大小为4GB\nMIPS体系结构中，4GB虚拟地址空间被划分为四个部分\nkuseg：用户态下唯一可用的地址空间（内核态下也可使用这段地址空间）。需要通过 MMU中的 TLB 进行虚拟地址到物理地址的变换。对这段 地址的==存取都会通过cache==。\nkseg0：内核态下可用的地址，MMU将地址的最高位清零（\u00267fffffff）就得到物理地址用于访存，这段虚拟地址被连续的映射到物理地址的低512MB，对这段地址的==存取都会通过cache==，我们将操作系统内核放在kseg0区域，例如.text,.data,.bss段。\n注：该段地址范围为0x80000000-0x9fffffff,有一个疑问是如果只对最高位清0，剩下31位地址空间比512MB大，但是我们观察最高三位数据，100 \u0026 011 ~ 100 \u0026 011 实际上经过运算已经保证了这段地址范围内高三位都是0。\nkseg1：内核态下可用的地址，MMU将地址的高三位清零（\u00261fffffff）就得到物理地址用于访存，这段虚拟地址被连续的映射到物理地址的低512MB，但是对这段地址的==存取不通过 cache==，往往在这段地址上使用MMIO（Memory-Mapped I/O）技术来访问外设。\nkseg2：：这段地址只能在内核态下使用并且需要 MMU 中 TLB 将虚拟地址转换为物理地址。对这段地址的==存取都会通过cache==。\n3.2 Linker Script ​\t在链接阶段引入Linker Script，Linker Script中记录了各个节应该如何映射到段，以及各个段应该被加载到的位置，这样就可以把我们的内核代码加载到正确的位置上。\n​\t上图即为操作系统实验中定义的kseg0内存划分，lab1练习题中只需简单的将.text段放在Kernel Text区域，将.data和.bss段放在.text后面即可。\n/* * Set the architecture to mips. */ OUTPUT_ARCH(mips) /* * Set the ENTRY point of the program to _start. */ ENTRY(_start) SECTIONS { . = 0x80020000; //kernel text起始地址 .text : {*(.text)} .data : {*(.data)} bss_start = .; .bss : {*(.bss)} bss_end = .; . = 0x80400000; //KSTACKTOP end = . ; } 解释：\n.为定位计数器，根据输出节的大小增长，SECTIONS命令开始时值为0，通过设置.的值即可设置接下来节的起始地址，例如上例中为.text段设置起始地址为Kernel Text的起始地址。\n.text : {*(.text)}表示将输入文件中所有.text节放到输出的.text节（这就是链接过程中section的合并）\n这样我们就可以大概理解内核的装载过程，Linker Script设置了各个section在内存(kseg0)中的内存位置，并将各个源代码编译后产生的可执行文件中的同类section合并为一个section后放进内存\n4.构建MOS内核 4.1 顶层Makefile ​\t展示部分代码\ninclude include.mk ... modules := lib init kern all: $(targets) $(target_dir): mkdir -p $@ tools: CC=\"$(HOST_CC)\" CFLAGS=\"$(HOST_CFLAGS)\" $(MAKE) --directory=$@ $(modules): tools $(MAKE) --directory=$@ $(mos_elf): $(modules) $(target_dir) $(LD) $(LDFLAGS) -o $(mos_elf) -N -T $(link_script) $(objects) 可以看到构建MOS系统的最后一步为链接指令\n$(LD) $(LDFLAGS) -o $(mos_elf) -N -T $(link_script) $(objects) **其中-T选项表示读取Linker Script脚本，**即为我们在上一节中完成的脚本。\n$@展开为当前目标名称，进入目标目录并调用make\n$(modules): tools $(MAKE) --directory=$@ 4.2 _start函数 ​\t_start是内核的入口\n#include #include .text EXPORT(_start) .set at .set reorder /* Lab 1 Key Code \"enter-kernel\" */ /* clear .bss segment */ la v0, bss_start la v1, bss_end clear_bss_loop: beq v0, v1, clear_bss_done sb zero, 0(v0) addiu v0, v0, 1 j clear_bss_loop /* End of Key Code \"enter-kernel\" */ clear_bss_done: /* disable interrupts */ mtc0 zero, CP0_STATUS /* set up the kernel stack */ li\tsp, 0x80400000 /* jump to mips_init */ j\tmips_init 注：栈空间为向下生长，需要将sp指针设置在内核栈空间的栈顶 mips_init函数在init.c文件中，在汇编程序中通过j/jal实现跳转到函数符号对应的地址，在链接时链接器会对代码中的符号进行重定位，实现跨文件的函数调用 4.3 printk ​\tprintk是内核用于输出调试信息的接口，这些调试信息可以帮助我们获取系统或程序中的一些关键信息，在系统出现问题后也能第一时间将错误信息记录下来，以帮助开发人员定位问题原因。例如我们的MOS系统中init.c文件中输出\nprintk(\"init.c:\\tmips_init() is called\\n\"); ​\t用来表示内核初始化已经启动。\n​\t在kern/printk.c中，我们可以看到printk.c的定义为\nvoid printk(const char *fmt, ...) { va_list ap; va_start(ap, fmt); vprintfmt(outputk, NULL, fmt, ap); va_end(ap); } ​\t注意到在参数列表中用省略号省略掉一些参数，这就是不定长参数。（注：可以参考printf的理解，前面是格式化字符串，后面跟随变量，当然后边变量的种类以及个数是根据格式化字符串确定的，后面的参数列表也就是不定长参数）我们首先介绍不定长参数。\n4.3.1 不定长参数 ​\t对于不定长参数，我们使用不定长参数表存储。在stdarg.h中，定义了一组宏和变量如下\nva_list：变长参数表的变量类型\nva_start(va_list ap, lastarg) ：用于初始化变长参数表的宏，其中lastarg代表最后一个形参\nva_arg(va_list ap, 类型)：用于取变长参数表下一个参数的宏，例如我们要获取边长参数表下一个int类型的参数\nva_list ap; int num = va_arg(ap,int); va_end(va_list ap) : 结束使用变长参数表的宏\n​\t总的来说我们对于变长参数表的处理是：可以把他看做一个不限制元素类型的数组，其中存放着各个参数，当我们需要使用时，就不断从中拿出来\n4.3.2 vprintfmt 4.3.2.1 函数定义分析 ​\tvprintfmt是练习中要求我们主要完成的代码部分，它实现了格式化输出字符串，我们在printk.c中实际上是通过vprintfmt实现了打印功能。观察printk.c中传递给vprintfmt的参数\nvprintfmt(outputk, NULL, fmt, ap); 对应vprintfmt的定义参数\nvoid vprintfmt(fmt_callback_t out, void *data, const char *fmt, va_list ap) 其中第一个参数outputk是一个函数指针，它对应着printk.c中的函数outputk\nvoid outputk(void *data, const char *buf, size_t len) { for (int i = 0; i \u003c len; i++) { printcharc(buf[i]); } } ​\toutputk即为一个字符串输出函数，虽然参数列表中有三个形参，但是我们实际上只用到了两个（第三个多余的void *data我们目前对他传递了NULL，是一个预留的形参），即指向字符串首地址的指针const char *buf以及字符串的长度size_t len。我们在vprintfmt中对该函数进行调用，故传入它的函数指针。\n4.3.3.3 解析思路分析 ​\tvprintfmt中主要是实现了对于格式化输出，思路就是对于格式化字符串进行解析，再从边长参数列表中一个个拿出对应的实参进行格式化输出，更进一步的，就是对%后面的格式控制符进行解析并对应格式输出，对于其他部分调用out函数指针原样输出\n​\t对于fmt的字符串格式\n​\t对格式字符串中各项进行解释\nflag\nwidth\nlength\nspecifier\n​\t当我们读到%后对后面字符串进行解析即可\nvoid vprintfmt(fmt_callback_t out, void *data, const char *fmt, va_list ap) { char c; const char *s; long num; int width; int long_flag; // output is long (rather than int) int neg_flag; // output is negative int ladjust; // output is left-aligned char padc; // padding char for (;;) { /* scan for the next '%' */ /* Exercise 1.4: Your code here. (1/8) */ s = fmt; while(*s != '%' \u0026\u0026 *s != '\\0') { s++; } /* flush the string found so far 输出%之前的字符串*/ /* Exercise 1.4: Your code here. (2/8) */ out(data,fmt,s-fmt); fmt = s; /* check \"are we hitting the end?\" */ /* Exercise 1.4: Your code here. (3/8) */ if (*fmt == '\\0') { break; } /* we found a '%' */ /* Exercise 1.4: Your code here. (4/8) */ fmt++; /* check format flag 左对齐 右对齐 、填充字符*/ /* Exercise 1.4: Your code here. (5/8) */ if (*fmt == '-') { ladjust = 1; fmt++; } else { ladjust = 0; } if (*fmt == '0') { padc = '0'; fmt++; } else { padc = ' '; } /* get width 输出宽度*/ /* Exercise 1.4: Your code here. (6/8) */ width = 0; while (*fmt \u003e= '0' \u0026\u0026 *fmt \u003c= '9') { width = width * 10 + (*fmt - '0'); fmt++; } /* check for long 这里标记长整数只有l*/ /* Exercise 1.4: Your code here. (7/8) */ if (*fmt == 'l') { long_flag = 1; fmt++; } else { long_flag = 0; } neg_flag = 0; switch (*fmt) { case 'b': if (long_flag) { num = va_arg(ap, long int); } else { num = va_arg(ap, int); } print_num(out, data, num, 2, 0, width, ladjust, padc, 0); break; case 'd': case 'D': if (long_flag) { num = va_arg(ap, long int); } else { num = va_arg(ap, int); } /* * Refer to other parts (case 'b', case 'o', etc.) and func 'print_num' to * complete this part. Think the differences between case 'd' and the * others. (hint: 'neg_flag'). */ /* Exercise 1.4: Your code here. (8/8) */ if (num \u003c 0) { neg_flag = 1; num = -num; } else { neg_flag = 0; } print_num(out, data, num, 10, neg_flag,width, ladjust, padc, 0); break; case 'o': case 'O': if (long_flag) { num = va_arg(ap, long int); } else { num = va_arg(ap, int); } print_num(out, data, num, 8, 0, width, ladjust, padc, 0); break; case 'u': case 'U': if (long_flag) { num = va_arg(ap, long int); } else { num = va_arg(ap, int); } print_num(out, data, num, 10, 0, width, ladjust, padc, 0); break; case 'x': if (long_flag) { num = va_arg(ap, long int); } else { num = va_arg(ap, int); } print_num(out, data, num, 16, 0, width, ladjust, padc, 0); break; case 'X': if (long_flag) { num = va_arg(ap, long int); } else { num = va_arg(ap, int); } print_num(out, data, num, 16, 0, width, ladjust, padc, 1); break; case 'c': c = (char)va_arg(ap, int); print_char(out, data, c, width, ladjust); break; case 's': s = (char *)va_arg(ap, char *); print_str(out, data, s, width, ladjust); break; case '\\0': fmt--; break; default: /* output this char as it is */ out(data, fmt, 1); } fmt++; } } ps:关于bootloader以及QEMU的一些思考 0.问题发现 在完成lab1课下代码后，我尝试进行make run，发现不断输出init.c: mips_init() is called，如下图 ​ 我认为是代码出现了问题，果断求助助教。在助教的帮助下，我逐渐理解了这个问题。\n1.分析代码 通过阅读代码，我们知道，输出这个字符串是start.S调用init.c中函数mips_init得到，由于不方便展示源码，这里只指出我是通过j指令完成了跳转，强调这一点是有必要的，如果使用jal进行跳转就不会出现这种状况，jal指令会改变$ra寄存器的值，与后边的论述矛盾。 通过对我们make的内核mos进行gdb调试，发现在程序执行完mips_init()之后总是跳回到start.S的第一行代码，如下图。 ​ 通过上学期的计组知识，我们知道，从被调用者跳回到调用者是通过指令jr $ra实现的，这一点我们可以在gdb中展示汇编代码得到验证(gdb模式下直接输入disassemble)，如下图。 ​ 这样问题就转化为$ra的值是什么？通过指令i registers可以查看各个寄存器的值。我们得到$ra寄存器的值如下图 ​ 同时我们可以发现，start.S中第一条代码的地址即为此地址。 ​ 但是在我们的代码中并没有存在对$ra赋值的操作，也就是说问题转化为$ra初值是如何得到的？\n2.bootloader 通过以上的分析，我们知道在内核相关代码中，我们并没有对$ra的值有写操作，此时将目光放在启动内核之前的硬件初始化阶段，即bootloader。直接make dbg进入调试，我们会发现输出如下 ​ 这里的0xbfc00000即为bootloader的地址，gdb并不支持显示调试信息，此时我们可以使用汇编级调试，通过运行\nset disassemble-nextline-on 进入汇编调试模式，之后ni单步调试，我们发现在bootloader中进行了对寄存器的赋初值操作，这里只展示我们关心的对于$ra寄存器的赋值操作，如下图 ​ 以上两条指令即为对$ra寄存器的赋值操作，更加值得注意的是下面两条汇编代码 ​ 我们发现在完成硬件相关初始化之后，跳转到了内核入口，在实践中印证了指导书中的内容 ​ 现在我们已经知道了$ra寄存器是在bootloader中进行赋初值，但是，bootloader是如何知道内核入口(kernel_entry)在哪里呢，即bootloader是如何知道要给$ra赋这个地址的?这与我们的实验环境QEMU有关。\n3.QEMU 我们知道，实验中我们使用了QEMU自带的bootloader，实际上，qemu也处理了一部分软件流程，对bootloader进行了简化，这在init.c的注释部分给出了提示。 ​ 直接去盒一下github上的源码！ ​ 在源码中我们找到了对$ra赋值操作，进一步的，查找kernel_entry是如何得来的？进一步查阅源码，可以发现 ​ 同时源码中给出了关于load_kernel()函数的定义，这里不再关心，我们可以得到结论：对$ra寄存器的赋值是在bootloader阶段由QEMU辅助完成的！\n4. 总结 此篇讨论帖讨论了关于$ra寄存器初值的问题以及bootloader和QEMU的一些思考，如有错误敬请指正，这里特别感谢助教的指引和帮助！\n","wordCount":"1476","inLanguage":"en","datePublished":"2024-03-18T10:30:58+08:00","dateModified":"2024-03-18T10:30:58+08:00","author":{"@type":"Person","name":"sudo"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://coder0xe.github.io/posts/os-lab1%E8%AF%BE%E4%B8%8B%E5%9F%BA%E7%A1%80/"},"publisher":{"@type":"Organization","name":"coder0xe's blog","logo":{"@type":"ImageObject","url":"https://coder0xe.github.io/favicon.ico"}}}</script></head><body id=top><header class=header><nav class=nav><div class=logo><a href=https://coder0xe.github.io/ accesskey=h title="coder0xe's blog (Alt + H)">coder0xe's blog</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://coder0xe.github.io/ title=首页><span>首页</span></a></li><li><a href=https://coder0xe.github.io/categories/ title=分类><span>分类</span></a></li><li><a href=https://coder0xe.github.io/tags/ title=标签><span>标签</span></a></li><li><a href=https://coder0xe.github.io/archives/ title=归档><span>归档</span></a></li><li><a href=https://coder0xe.github.io/search/ title=搜索><span>搜索</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://coder0xe.github.io/>Home</a>&nbsp;»&nbsp;<a href=https://coder0xe.github.io/posts/>Posts</a></div><h1 class="post-title entry-hint-parent">OS-lab1课下基础</h1><div class=post-description>OS-lab1</div><div class=post-meta><span title='2024-03-18 10:30:58 +0800 +0800'>March 18, 2024</span>&nbsp;·&nbsp;<span>7 min</span>&nbsp;·&nbsp;<span>sudo</span></div></header><div class=toc><details open><summary accesskey=c title="(Alt + C)"><span class=details>Table of Contents</span></summary><div class=inner><ul><li><a href=#os-lab1%e8%af%be%e4%b8%8b%e5%9f%ba%e7%a1%80 aria-label="OS ：lab1课下基础">OS ：lab1课下基础</a><ul><li><a href=#1-%e6%93%8d%e4%bd%9c%e7%b3%bb%e7%bb%9f%e7%9a%84%e5%90%af%e5%8a%a8--boot aria-label="1. 操作系统的启动 : boot">1. 操作系统的启动 : boot</a><ul><li><a href=#11-%e6%a6%82%e8%bf%b0 aria-label="1.1 概述">1.1 概述</a></li><li><a href=#12-bootloader aria-label="1.2 bootloader">1.2 bootloader</a></li><li><a href=#13-qemu%e4%b8%ad%e6%93%8d%e4%bd%9c%e7%b3%bb%e7%bb%9f%e7%9a%84%e5%90%af%e5%8a%a8 aria-label="1.3 QEMU中操作系统的启动">1.3 QEMU中操作系统的启动</a></li></ul></li><li><a href=#2-elf aria-label="2. ELF">2. ELF</a><ul><li><a href=#21-%e7%bc%96%e8%af%91%e9%93%be%e6%8e%a5 aria-label="2.1 编译链接">2.1 编译链接</a></li><li><a href=#22-elf aria-label="2.2 ELF">2.2 ELF</a><ul><li><a href=#221-%e6%ae%b5%e5%92%8c%e8%8a%82 aria-label="2.2.1 段和节">2.2.1 段和节</a></li><li><a href=#221-elf%e7%bb%93%e6%9e%84 aria-label="2.2.1 ELF结构">2.2.1 ELF结构</a></li><li><a href=#223-exercise-11-%e4%b8%ad%e7%9a%84%e4%b8%80%e4%ba%9b%e9%97%ae%e9%a2%98 aria-label="2.2.3 Exercise 1.1 中的一些问题">2.2.3 Exercise 1.1 中的一些问题</a></li></ul></li></ul></li><li><a href=#3-mips%e5%86%85%e5%ad%98%e5%b8%83%e5%b1%80 aria-label="3. MIPS内存布局">3. MIPS内存布局</a><ul><li><a href=#31-mips-32%e5%86%85%e5%ad%98 aria-label="3.1 MIPS-32内存">3.1 MIPS-32内存</a></li><li><a href=#32-linker-script aria-label="3.2 Linker Script">3.2 Linker Script</a></li></ul></li><li><a href=#4%e6%9e%84%e5%bb%bamos%e5%86%85%e6%a0%b8 aria-label=4.构建MOS内核>4.构建MOS内核</a><ul><li><a href=#41-%e9%a1%b6%e5%b1%82makefile aria-label="4.1 顶层Makefile">4.1 顶层Makefile</a></li><li><a href=#42-_start%e5%87%bd%e6%95%b0 aria-label="4.2 _start函数">4.2 _start函数</a></li><li><a href=#43-printk aria-label="4.3 printk">4.3 printk</a><ul><li><a href=#431-%e4%b8%8d%e5%ae%9a%e9%95%bf%e5%8f%82%e6%95%b0 aria-label="4.3.1 不定长参数">4.3.1 不定长参数</a></li><li><a href=#432-vprintfmt aria-label="4.3.2 vprintfmt">4.3.2 vprintfmt</a><ul><li><a href=#4321-%e5%87%bd%e6%95%b0%e5%ae%9a%e4%b9%89%e5%88%86%e6%9e%90 aria-label="4.3.2.1 函数定义分析">4.3.2.1 函数定义分析</a></li><li><a href=#4333-%e8%a7%a3%e6%9e%90%e6%80%9d%e8%b7%af%e5%88%86%e6%9e%90 aria-label="4.3.3.3 解析思路分析">4.3.3.3 解析思路分析</a></li></ul></li></ul></li></ul></li><li><a href=#ps%e5%85%b3%e4%ba%8ebootloader%e4%bb%a5%e5%8f%8aqemu%e7%9a%84%e4%b8%80%e4%ba%9b%e6%80%9d%e8%80%83 aria-label=ps:关于bootloader以及QEMU的一些思考>ps:关于bootloader以及QEMU的一些思考</a></li><li><a href=#0%e9%97%ae%e9%a2%98%e5%8f%91%e7%8e%b0 aria-label=0.问题发现>0.问题发现</a></li><li><a href=#1%e5%88%86%e6%9e%90%e4%bb%a3%e7%a0%81 aria-label=1.分析代码>1.分析代码</a></li><li><a href=#2bootloader aria-label=2.bootloader>2.bootloader</a></li><li><a href=#3qemu aria-label=3.QEMU>3.QEMU</a></li><li><a href=#4-%e6%80%bb%e7%bb%93 aria-label="4. 总结">4. 总结</a></li></ul></li></ul></div></details></div><div class=post-content><h1 id=os-lab1课下基础>OS ：lab1课下基础<a hidden class=anchor aria-hidden=true href=#os-lab1课下基础>#</a></h1><h2 id=1-操作系统的启动--boot>1. 操作系统的启动 : boot<a hidden class=anchor aria-hidden=true href=#1-操作系统的启动--boot>#</a></h2><h3 id=11-概述>1.1 概述<a hidden class=anchor aria-hidden=true href=#11-概述>#</a></h3><p>​ <strong>将硬件初始化的相关工作称为bootloader程序</strong>，将<code>bootloader</code>程序放在非易失存储器中(ROM/FLASH)，将操作系统内核放在磁盘中。</p><ul><li>将硬件初始化相关工作从操作系统中抽离出来放在bootloader中实现。实现了硬件启动和软件启动的分离。<strong>即由bootloader实现硬件启动，操作系统内核实现软件启动</strong>，这样负责硬件启动的指令不多，需要的存储空间不大，可以存在容量较小的ROM或FLASH中</li><li>bootloader在硬件初始化之后，需要为软件启动（操作系统内核的功能）做准备，将内核镜像从存放他的存储器（例如磁盘）中读到RAM中。<strong>bootloader需要将内核镜像加载到内存中，就可以选择用哪一个内核镜像进行加载，实现多重开机的功能，在一个硬件上选择运行不同的操作系统。</strong></li><li><strong>bootloader划分了硬件启动和软件启动的边界</strong>，bootloader主要负责硬件启动相关工作，操作系统内核专注于软件启动以及对用户提供服务的工作。简化操作系统的开发和移植。</li></ul><h3 id=12-bootloader>1.2 bootloader<a hidden class=anchor aria-hidden=true href=#12-bootloader>#</a></h3><p>​ bootloader需要正确地找到内核并加载执行。bootloader的实现依赖于CPU的体系结构，分为stage1，stage2两个部分。</p><p><img alt=image-20240318110032974 loading=lazy src=/img/image-20240318110032974.png></p><h3 id=13-qemu中操作系统的启动>1.3 QEMU中操作系统的启动<a hidden class=anchor aria-hidden=true href=#13-qemu中操作系统的启动>#</a></h3><p>​ QEMU已经提供了bootloader的引导功能，支持加载ELF格式的内核。启动流程被简化为加载内核到内存，之后跳转到内核的入口。</p><h2 id=2-elf>2. ELF<a hidden class=anchor aria-hidden=true href=#2-elf>#</a></h2><h3 id=21-编译链接>2.1 编译链接<a hidden class=anchor aria-hidden=true href=#21-编译链接>#</a></h3><p>​ 我们知道源代码文件需要经过编译链接两个阶段才能变成可执行文件来运行。</p><ul><li><p>编译<code>-c</code>：源代码被翻译为二进制指令，得到目标文件</p></li><li><p>链接：将多个目标文件链接为可执行文件</p></li><li><p>将编译好的目标文件反汇编：objdump指令</p><pre tabindex=0><code>objdump -DS &lt;要反汇编的目标文件名&gt; &gt; &lt;导出文本文件名&gt;
+</code></pre></li></ul><p><img alt=image-20240320221446864 loading=lazy src=/img/image-20240320221446864.png></p><p>​ 以简单的代码为示例</p><pre tabindex=0><code>#include&lt;stdio.h&gt;
+int main()
+{
+	printf(&#34;hello,world!\n&#34;);
+	return 0;
+}
+</code></pre><p>​ 这里我们知道，<strong>头文件中只包含函数的声明，而不包括函数的定义</strong>，因此在预处理阶段（替换头文件、宏定义过程）只会将printf替换为他的声明。最后在链接阶段才会替换为printf的实现。<strong>即在编译的最后，链接器将所有的目标文件链接在一起，将 之前未填写的地址等信息填上，形成最终的可执行文件，这就是链接的过程</strong></p><h3 id=22-elf>2.2 ELF<a hidden class=anchor aria-hidden=true href=#22-elf>#</a></h3><p>​ ELF是一种文件格式，即<code>Executable and Linkable Format</code>。ELF是Unix系统中一种常见的文件格式，包括可重定位文件(relocatable)，可执行文件(executable)，共享对象文件(shared object)。其中可重定位文件即为我们熟悉的.o文件，后两种文件都需要对.o文件进行链接才能产生。</p><h4 id=221-段和节>2.2.1 段和节<a hidden class=anchor aria-hidden=true href=#221-段和节>#</a></h4><ul><li>段：segment</li><li>节：section</li></ul><blockquote><p>ELF 官方文档中对于section segment的解释</p></blockquote><p><img alt=image-20240320224950997 loading=lazy src=/img/image-20240320224950997.png></p><ul><li><p>所谓section与segment是同一数据的两种视图</p></li><li><p>左侧是链接视图：使用section进行链接</p></li><li><p>右侧是执行视图：使用segment运行</p></li><li><p>每个segment中包含一个或多个section</p></li><li><p>节头表(Section header table)：包含程序中各个节(section)的信息，在程序编译链接时使用</p></li><li><p>段头表(Program header table)：包含程序中各个段(segment)的信息，在运行时使用</p></li></ul><p><img alt=image-20240320234355920 loading=lazy src=/img/image-20240320234355920.png></p><ul><li><p>编译->链接->运行</p></li><li><p>编译：源代码->可执行代码（机器码，目标文件或可执行文件中就是机器码）</p></li><li><p>链接：链接器将性质相同的sections归类合并为一个segment，例如.text,.data,.bss等都是典型的需要加载的section，就会被安排到LOAD segment</p><ul><li>.text是指可执行代码，也就是机器码，编译时确定（C、汇编等等语言经过编译都转化为机器码）</li><li>.data存放在编译时就能确定的数据（而非运行时），如已初始化的全局变量和静态变量</li><li>.bss保存未初始化的全局变量和静态变量</li></ul></li><li><p>运行：使用各个segement进行运行</p></li></ul><p>​ <strong>从编译->链接->运行的角度看section和segment，以简单的hello world程序为例</strong></p><ul><li><p>使用-c选项进行编译</p><p><img alt=image-20240321095810527 loading=lazy src=/img/image-20240321095810527.png></p><p>通过<code>readelf -S &lt;filename></code>对产生的可重定向文件(.o)进行查看，可以发现程序经过编译之后已经被划分为了不同的段，其中有我们熟知的<code>.text</code>，<code>.data</code>等，这就是编译产生的不同类别的section。<code>.text</code>中的内容为可执行代码，即机器码。<code>.data</code>中的内容为在编译阶段中就可以确定的变量值，例如全局变量等。</p></li><li><p>通过上面的实验已经知道，对源代码文件的编译会将源代码划分为不同的section，那么在链接的过程中就会对不同源代码编译后产生的相同类别的section进行合并，例如将不同代码中的text段合并为一个text段。</p></li><li><p>segment中有几种分区，分别存放不同种类的section。常见的有<code>NOTE segment</code>和<code>LOAD segment</code>。<code>NOTE segment</code>中存放了调试的一些信息，例如dwarf或者gnu_version、gnu_hash等，我们常见的.data,.text会被存放在<code>LOAD segment</code>中。下面是对前程序进行链接后的结果，同样使用readelf查看section信息(其中.note前缀等即为NOTE segment区域)</p><p><img alt=image-20240321100840972 loading=lazy src=/img/image-20240321100840972.png></p></li><li><p>ps:后续在课件中找到的图</p><p><img alt=image-20240325173252365 loading=lazy src=/img/image-20240325173252365.png></p></li></ul><h4 id=221-elf结构>2.2.1 ELF结构<a hidden class=anchor aria-hidden=true href=#221-elf结构>#</a></h4><p><img alt=image-20240321161420257 loading=lazy src=/img/image-20240321161420257.png></p><p>主要结构有ELF头，段头表，节头表等，我们可以结合课程组给出的elf.h来理解各个部分的主要结构。</p><ul><li><p>ELF header(Ehdr) ：ELF文件头</p><pre tabindex=0><code>typedef struct {
+	unsigned char e_ident[EI_NIDENT]; /* Magic number and other info */
+	Elf32_Half e_type;		  /* Object file type */
+	Elf32_Half e_machine;		  /* Architecture */
+	Elf32_Word e_version;		  /* Object file version */
+	Elf32_Addr e_entry;		  /* Entry point virtual address */
+	Elf32_Off e_phoff;		  /* Program header table file offset */
+	Elf32_Off e_shoff;		  /* Section header table file offset */
+	Elf32_Word e_flags;		  /* Processor-specific flags */
+	Elf32_Half e_ehsize;		  /* ELF header size in bytes */
+	Elf32_Half e_phentsize;		  /* Program header table entry size */
+	Elf32_Half e_phnum;		  /* Program header table entry count */
+	Elf32_Half e_shentsize;		  /* Section header table entry size */
+	Elf32_Half e_shnum;		  /* Section header table entry count */
+	Elf32_Half e_shstrndx;		  /* Section header string table index */
+} Elf32_Ehdr;
+</code></pre><p>对于ELF文件头的定义是一个结构体，名为Elf32_Ehdr。我们只关注结构体中比较重要的几个变量</p><ul><li>Elf32_Off e_phoff ：段头表相对文件的偏移量</li><li>Elf32_Off e_shoff : 节头表相对文件的偏移量</li><li>我们依据以上两个变量可以找到段头表或节头表第一项的位置，再向下遍历即可得到表中的每一项</li><li>Elf32_Half e_phentsize : entry size 即段头表中每一项（每一个段头program header : phdr，描述相应段的信息）的大小</li><li>Elf32_Half e_phnum : 段头表中表项的个数</li><li>Elf32_Half e_shentsize : 节头表中每一项（每一个节头 section header : shdr，描述相应节的信息）的大小</li><li>Elf32_Half e_shnum : 节头表中表项的个数</li></ul></li><li><p>program header (phdr) : 段头</p><pre tabindex=0><code>typedef struct {
+	Elf32_Word p_type;   /* Segment type */
+	Elf32_Off p_offset;  /* Segment file offset */
+	Elf32_Addr p_vaddr;  /* Segment virtual address */
+	Elf32_Addr p_paddr;  /* Segment physical address */
+	Elf32_Word p_filesz; /* Segment size in file */
+	Elf32_Word p_memsz;  /* Segment size in memory */
+	Elf32_Word p_flags;  /* Segment flags */
+	Elf32_Word p_align;  /* Segment alignment */
+} Elf32_Phdr;
+</code></pre><blockquote><p>每一个段头是段头表中的一项(entry)，他描述了一段的信息</p></blockquote></li><li><p>section header (shdr) : 节头</p><pre tabindex=0><code>typedef struct {
+	Elf32_Word sh_name;	 /* Section name */
+	Elf32_Word sh_type;	 /* Section type */
+	Elf32_Word sh_flags;	 /* Section flags */
+	Elf32_Addr sh_addr;	 /* Section addr */
+	Elf32_Off sh_offset;	 /* Section offset */
+	Elf32_Word sh_size;	 /* Section size */
+	Elf32_Word sh_link;	 /* Section link */
+	Elf32_Word sh_info;	 /* Section extra info */
+	Elf32_Word sh_addralign; /* Section alignment */
+	Elf32_Word sh_entsize;	 /* Section entry size */
+} Elf32_Shdr;
+</code></pre><blockquote><p>每一个节头是节头表中的一项，他描述了一节的信息</p></blockquote></li></ul><h4 id=223-exercise-11-中的一些问题>2.2.3 Exercise 1.1 中的一些问题<a hidden class=anchor aria-hidden=true href=#223-exercise-11-中的一些问题>#</a></h4><p>​ Exercise1.1中，要求我们完成一个解析ELF文件的C代码文件readelf.c，更准确的说是要求我们完成对节头表的遍历，思路上不困难，即先根据首地址和节头表的偏移量计算出节头表中第一项的位置，之后遍历后边表项即可，真正让人头疼的是一些C语言指针问题，先给出源代码。</p><pre tabindex=0><code>int readelf(const void *binary, size_t size) {
+	Elf32_Ehdr *ehdr = (Elf32_Ehdr *)binary;
+	if (!is_elf_format(binary, size)) {
+		fputs(&#34;not an elf file\n&#34;, stderr);
+		return -1;
+	}
+	const void *sh_table;
+	Elf32_Half sh_entry_count;
+	Elf32_Half sh_entry_size;
+	sh_table = (const void*)ehdr + ehdr-&gt;e_shoff;
+	sh_entry_count = ehdr-&gt;e_shnum;
+	sh_entry_size = ehdr-&gt;e_shentsize;
+	for (int i = 0; i &lt; sh_entry_count; i++) {
+		const Elf32_Shdr *shdr;
+		unsigned int addr;
+		/* Exercise 1.1: Your code here. (2/2) */
+		shdr = (const Elf32_Shdr*)sh_table + i;
+		addr = shdr-&gt;sh_addr;
+		printf(&#34;%d:0x%x\n&#34;, i, addr);
+	}
+	return 0;
+}
+</code></pre><ul><li><p>关于结构体指针：结构体指针引用其中变量使用箭头表示</p><pre tabindex=0><code>sh_entry_count = ehdr-&gt;e_shnum
+</code></pre></li><li><p>关于指针的加减运算：指针加减运算移动的字节数为指针所指向的元素类型的字节数乘上偏移量，即
+$$
+Type * p\space + \space off \space : \space sizeof(Type)*off \space bytes
+$$</p></li><li><p>关于指针的类型转换，在此题中出现的是有类型和无类型之间的转换，都用到了强制类型转换</p><pre tabindex=0><code>sh_table = (const void*)ehdr + ehdr-&gt;e_shoff;
+shdr = (const Elf32_Shdr*)sh_table + i;
+</code></pre><p>我们注意到这两处都涉及到指针的运算，若不对指针类型进行转换则移动字节会以原来类型进行移动</p></li><li><p>关于GNU中对于void*元素类型的规定，我们注意到</p><pre tabindex=0><code>sh_table = (const void*)ehdr + ehdr-&gt;e_shoff;
+</code></pre><p><strong>那么void*所指代的元素类型占多大字节？在GNU中规定占一个字节</strong></p><p><img alt=image-20240321165028139 loading=lazy src=/img/image-20240321165028139.png></p></li><li><p>可以使用系统自带的readelf命令进行验证</p><ul><li><p><code>readelf -S &lt;file> 查看节信息</code></p><p><img alt=image-20240321165734277 loading=lazy src=/img/image-20240321165734277.png></p></li><li><p><code>readelf -l &lt;file> 查看段信息</code></p><p><img alt=image-20240321165804280 loading=lazy src=/img/image-20240321165804280.png></p><ul><li>Offset代表该段数据相对于ELF文件的偏移</li><li>VirtAddr代表该段数据最终被加载到内存的位置</li><li>FileSiz代表该段数据在文件中所占的大小</li><li>MemSiz代表该段数据在内存中所占的大小</li></ul><p><strong>注：MemSiz >= FileSiz C语言中未初始化的全局变量，我们需要为其分配内存，但它 又不需要被初始化成特定数据。因此，在可执行文件中也只记录它需要占用内存(MemSiz)， 但在文件中却没有相应的数据（因为它并不需要初始化成特定数据）。故而在这种情况下， MemSiz会大于FileSiz。这也解释了，为什么C语言中全局变量会有默认值0。这是因为 操作系统在加载时将所有未初始化的全局变量所占的内存统一填了0</strong></p></li></ul></li></ul><h2 id=3-mips内存布局>3. MIPS内存布局<a hidden class=anchor aria-hidden=true href=#3-mips内存布局>#</a></h2><h3 id=31-mips-32内存>3.1 MIPS-32内存<a hidden class=anchor aria-hidden=true href=#31-mips-32内存>#</a></h3><blockquote><p>程序中使用的地址被称为虚拟地址、程序地址或逻辑地址，处理器发往总线的地址为物理地址，需要通过CPU中的MMU单元进行转换(Memory Management Unit)，全部虚拟地址构成了虚拟地址空间，本实验中32位MIPS操作系统的虚拟地址空间大小为4GB</p></blockquote><ul><li><p>MIPS体系结构中，4GB虚拟地址空间被划分为四个部分</p><p><img alt=image-20240321174133781 loading=lazy src=/img/image-20240321174133781.png></p><ul><li><p>kuseg：用户态下唯一可用的地址空间（内核态下也可使用这段地址空间）。需要通过 MMU中的 TLB 进行虚拟地址到物理地址的变换。对这段 地址的==存取都会通过cache==。</p></li><li><p>kseg0：内核态下可用的地址，MMU将地址的最高位清零（&amp;7fffffff）就得到物理地址用于访存，这段虚拟地址被连续的映射到物理地址的低512MB，对这段地址的==存取都会通过cache==，<strong>我们将操作系统内核放在kseg0区域，例如.text,.data,.bss段。</strong></p><p><strong>注：该段地址范围为0x80000000-0x9fffffff,有一个疑问是如果只对最高位清0，剩下31位地址空间比512MB大，但是我们观察最高三位数据，100 & 011 ~ 100 & 011 实际上经过运算已经保证了这段地址范围内高三位都是0。</strong></p></li><li><p>kseg1：内核态下可用的地址，MMU将地址的高三位清零（&amp;1fffffff）就得到物理地址用于访存，这段虚拟地址被连续的映射到物理地址的低512MB，但是对这段地址的==存取不通过 cache==，<strong>往往在这段地址上使用MMIO（Memory-Mapped I/O）技术来访问外设</strong>。</p></li><li><p>kseg2：：这段地址只能在内核态下使用并且需要 MMU 中 TLB 将虚拟地址转换为物理地址。对这段地址的==存取都会通过cache==。</p></li></ul></li></ul><h3 id=32-linker-script>3.2 Linker Script<a hidden class=anchor aria-hidden=true href=#32-linker-script>#</a></h3><p>​ 在链接阶段引入Linker Script，Linker Script中记录了各个节应该如何映射到段，以及各个段应该被加载到的位置，这样就可以把我们的内核代码加载到正确的位置上。</p><p><img alt=image-20240322110321394 loading=lazy src=/img/image-20240322110321394.png></p><p>​ 上图即为操作系统实验中定义的kseg0内存划分，lab1练习题中只需简单的将.text段放在Kernel Text区域，将.data和.bss段放在.text后面即可。</p><pre tabindex=0><code>/*
+ * Set the architecture to mips.
+ */
+OUTPUT_ARCH(mips)
+
+/*
+ * Set the ENTRY point of the program to _start.
+ */
+ENTRY(_start)
+
+SECTIONS {
+	. = 0x80020000; //kernel text起始地址
+	.text : {*(.text)}
+	.data : {*(.data)}
+	bss_start = .;
+	.bss : {*(.bss)}
+	bss_end = .;
+	. = 0x80400000; //KSTACKTOP
+	end = . ;
+}
+</code></pre><ul><li><p>解释：</p><ul><li><p><code>.</code>为定位计数器，根据输出节的大小增长，SECTIONS命令开始时值为0，<strong>通过设置<code>.</code>的值即可设置接下来节的起始地址</strong>，例如上例中为.text段设置起始地址为Kernel Text的起始地址。</p></li><li><p><code>.text : {*(.text)}</code>表示将输入文件中所有.text节放到输出的.text节（这就是链接过程中section的合并）</p></li><li><p>这样我们就可以大概理解内核的装载过程，Linker Script设置了各个section在内存(kseg0)中的内存位置，并将各个源代码编译后产生的可执行文件中的同类section合并为一个section后放进内存</p></li></ul></li></ul><h2 id=4构建mos内核>4.构建MOS内核<a hidden class=anchor aria-hidden=true href=#4构建mos内核>#</a></h2><h3 id=41-顶层makefile>4.1 顶层Makefile<a hidden class=anchor aria-hidden=true href=#41-顶层makefile>#</a></h3><p>​ 展示部分代码</p><pre tabindex=0><code>include include.mk
+...
+modules  := lib init kern
+all: $(targets)
+
+$(target_dir):
+	mkdir -p $@
+
+tools:
+	CC=&#34;$(HOST_CC)&#34; CFLAGS=&#34;$(HOST_CFLAGS)&#34; $(MAKE) --directory=$@
+
+$(modules): tools
+	$(MAKE) --directory=$@
+
+$(mos_elf): $(modules) $(target_dir)
+	$(LD) $(LDFLAGS) -o $(mos_elf) -N -T $(link_script) $(objects)
+</code></pre><ul><li><p>可以看到构建MOS系统的最后一步为链接指令</p><pre tabindex=0><code>$(LD) $(LDFLAGS) -o $(mos_elf) -N -T $(link_script) $(objects)
+</code></pre><p>**其中-T选项表示读取Linker Script脚本，**即为我们在上一节中完成的脚本。</p></li><li><p><code>$@</code>展开为当前目标名称，进入目标目录并调用make</p><pre tabindex=0><code>$(modules): tools
+	$(MAKE) --directory=$@
+</code></pre></li></ul><h3 id=42-_start函数>4.2 _start函数<a hidden class=anchor aria-hidden=true href=#42-_start函数>#</a></h3><p>​ <strong>_start是内核的入口</strong></p><pre tabindex=0><code>#include &lt;asm/asm.h&gt;
+#include &lt;mmu.h&gt;
+
+.text
+EXPORT(_start)
+.set at
+.set reorder
+/* Lab 1 Key Code &#34;enter-kernel&#34; */
+	/* clear .bss segment */
+	la      v0, bss_start
+	la      v1, bss_end
+clear_bss_loop:
+	beq     v0, v1, clear_bss_done
+	sb      zero, 0(v0)
+	addiu   v0, v0, 1
+	j       clear_bss_loop
+/* End of Key Code &#34;enter-kernel&#34; */
+
+clear_bss_done:
+	/* disable interrupts */
+	mtc0    zero, CP0_STATUS
+	/* set up the kernel stack */
+	li	sp, 0x80400000
+	/* jump to mips_init */
+	j	mips_init
+</code></pre><ul><li><strong>注：栈空间为向下生长，需要将sp指针设置在内核栈空间的栈顶</strong></li><li>mips_init函数在init.c文件中，在汇编程序中通过j/jal实现跳转到函数符号对应的地址，<strong>在链接时链接器会对代码中的符号进行重定位，实现跨文件的函数调用</strong></li></ul><h3 id=43-printk>4.3 printk<a hidden class=anchor aria-hidden=true href=#43-printk>#</a></h3><p>​ <strong>printk是内核用于输出调试信息的接口</strong>，这些调试信息可以帮助我们获取系统或程序中的一些关键信息，在系统出现问题后也能第一时间将错误信息记录下来，以帮助开发人员定位问题原因。例如我们的MOS系统中init.c文件中输出</p><pre tabindex=0><code>printk(&#34;init.c:\tmips_init() is called\n&#34;);
+</code></pre><p>​ 用来表示内核初始化已经启动。</p><p>​ 在<code>kern/printk.c</code>中，我们可以看到printk.c的定义为</p><pre tabindex=0><code>void printk(const char *fmt, ...) {
+ va_list ap;
+ va_start(ap, fmt);
+ vprintfmt(outputk, NULL, fmt, ap);
+ va_end(ap);
+ }
+</code></pre><p>​ 注意到在参数列表中用省略号省略掉一些参数，这就是不定长参数。（注：可以参考printf的理解，前面是格式化字符串，后面跟随变量，当然后边变量的种类以及个数是根据格式化字符串确定的，后面的参数列表也就是不定长参数）我们首先介绍不定长参数。</p><h4 id=431-不定长参数>4.3.1 不定长参数<a hidden class=anchor aria-hidden=true href=#431-不定长参数>#</a></h4><p>​ 对于不定长参数，我们使用不定长参数表存储。在<code>stdarg.h</code>中，定义了一组宏和变量如下</p><ul><li><p>va_list：变长参数表的变量类型</p></li><li><p>va_start(va_list ap, lastarg) ：用于初始化变长参数表的宏，其中lastarg代表最后一个形参</p></li><li><p>va_arg(va_list ap, 类型)：用于取变长参数表下一个参数的宏，例如我们要获取边长参数表下一个int类型的参数</p><pre tabindex=0><code>va_list ap;
+int num = va_arg(ap,int);
+</code></pre></li><li><p>va_end(va_list ap) : 结束使用变长参数表的宏</p></li></ul><p>​ <strong>总的来说我们对于变长参数表的处理是：可以把他看做一个不限制元素类型的数组，其中存放着各个参数，当我们需要使用时，就不断从中拿出来</strong></p><h4 id=432-vprintfmt>4.3.2 vprintfmt<a hidden class=anchor aria-hidden=true href=#432-vprintfmt>#</a></h4><h5 id=4321-函数定义分析>4.3.2.1 函数定义分析<a hidden class=anchor aria-hidden=true href=#4321-函数定义分析>#</a></h5><p>​ vprintfmt是练习中要求我们主要完成的代码部分，它实现了格式化输出字符串，我们在printk.c中实际上是通过vprintfmt实现了打印功能。观察printk.c中传递给vprintfmt的参数</p><pre tabindex=0><code>vprintfmt(outputk, NULL, fmt, ap);
+</code></pre><p>对应vprintfmt的定义参数</p><pre tabindex=0><code>void vprintfmt(fmt_callback_t out, void *data, const char *fmt, va_list ap)
+</code></pre><p>其中第一个参数outputk是一个函数指针，它对应着printk.c中的函数<code>outputk</code></p><pre tabindex=0><code> void outputk(void *data, const char *buf, size_t len) {
+         for (int i = 0; i &lt; len; i++) {
+                 printcharc(buf[i]);
+         }
+ }
+</code></pre><p>​ outputk即为一个字符串输出函数，虽然参数列表中有三个形参，但是我们实际上只用到了两个（第三个多余的void *data我们目前对他传递了NULL，是一个预留的形参），即指向字符串首地址的指针<code>const char *buf</code>以及字符串的长度<code>size_t len</code>。我们在vprintfmt中对该函数进行调用，故传入它的函数指针。</p><h5 id=4333-解析思路分析>4.3.3.3 解析思路分析<a hidden class=anchor aria-hidden=true href=#4333-解析思路分析>#</a></h5><p>​ vprintfmt中主要是实现了对于格式化输出，<strong>思路就是对于格式化字符串进行解析，再从边长参数列表中一个个拿出对应的实参进行格式化输出，更进一步的，就是对%后面的格式控制符进行解析并对应格式输出，对于其他部分调用out函数指针原样输出</strong></p><p>​ 对于fmt的字符串格式</p><p><img alt=image-20240323111757887 loading=lazy src=/img/image-20240323111757887.png></p><p>​ 对格式字符串中各项进行解释</p><ul><li><p>flag</p><p><img alt=image-20240323111854505 loading=lazy src=/img/image-20240323111854505.png></p></li><li><p>width</p><p><img alt=image-20240323111916064 loading=lazy src=/img/image-20240323111916064.png></p></li><li><p>length</p><p><img alt=image-20240323111946878 loading=lazy src=/img/image-20240323111946878.png></p></li><li><p>specifier</p><p><img alt=image-20240323112007766 loading=lazy src=/img/image-20240323112007766.png></p></li></ul><p>​ 当我们读到%后对后面字符串进行解析即可</p><pre tabindex=0><code>void vprintfmt(fmt_callback_t out, void *data, const char *fmt, va_list ap) {
+	char c;
+	const char *s;
+	long num;
+
+	int width;
+	int long_flag; // output is long (rather than int)
+	int neg_flag;  // output is negative
+	int ladjust;   // output is left-aligned
+	char padc;     // padding char
+
+	for (;;) {
+		/* scan for the next &#39;%&#39; */
+		/* Exercise 1.4: Your code here. (1/8) */
+		s = fmt;
+		while(*s != &#39;%&#39; &amp;&amp; *s != &#39;\0&#39;) {
+			s++;
+		}
+		/* flush the string found so far 输出%之前的字符串*/
+		/* Exercise 1.4: Your code here. (2/8) */
+		out(data,fmt,s-fmt);
+		fmt = s;
+		/* check &#34;are we hitting the end?&#34; */
+		/* Exercise 1.4: Your code here. (3/8) */
+		if (*fmt == &#39;\0&#39;) {
+			break;
+		}
+		/* we found a &#39;%&#39; */
+		/* Exercise 1.4: Your code here. (4/8) */
+		fmt++;
+		/* check format flag 左对齐 右对齐 、填充字符*/
+		/* Exercise 1.4: Your code here. (5/8) */
+		if (*fmt == &#39;-&#39;) {
+			ladjust = 1;
+			fmt++;
+		} else {
+			ladjust = 0;
+		}
+		if (*fmt == &#39;0&#39;) {
+			padc = &#39;0&#39;;
+			fmt++;
+		} else {
+			padc = &#39; &#39;;
+		}
+		/* get width 输出宽度*/
+		/* Exercise 1.4: Your code here. (6/8) */
+		width = 0;
+		while (*fmt &gt;= &#39;0&#39; &amp;&amp; *fmt &lt;= &#39;9&#39;) {
+			width = width * 10 + (*fmt - &#39;0&#39;);
+			fmt++;
+		}
+		/* check for long 这里标记长整数只有l*/
+		/* Exercise 1.4: Your code here. (7/8) */
+		if (*fmt == &#39;l&#39;) {
+			long_flag = 1;
+			fmt++;
+		} else {
+			long_flag = 0;
+		}
+		neg_flag = 0;
+		switch (*fmt) {
+		case &#39;b&#39;:
+			if (long_flag) {
+				num = va_arg(ap, long int);
+			} else {
+				num = va_arg(ap, int);
+			}
+			print_num(out, data, num, 2, 0, width, ladjust, padc, 0);
+			break;
+
+		case &#39;d&#39;:
+		case &#39;D&#39;:
+			if (long_flag) {
+				num = va_arg(ap, long int);
+			} else {
+				num = va_arg(ap, int);
+			}
+
+			/*
+			 * Refer to other parts (case &#39;b&#39;, case &#39;o&#39;, etc.) and func &#39;print_num&#39; to
+			 * complete this part. Think the differences between case &#39;d&#39; and the
+			 * others. (hint: &#39;neg_flag&#39;).
+			 */
+			/* Exercise 1.4: Your code here. (8/8) */
+			if (num &lt; 0) {
+				neg_flag = 1;
+				num = -num;
+			} else {
+				neg_flag = 0;
+			}
+			print_num(out, data, num, 10, neg_flag,width, ladjust, padc, 0);
+			break;
+
+		case &#39;o&#39;:
+		case &#39;O&#39;:
+			if (long_flag) {
+				num = va_arg(ap, long int);
+			} else {
+				num = va_arg(ap, int);
+			}
+			print_num(out, data, num, 8, 0, width, ladjust, padc, 0);
+			break;
+
+		case &#39;u&#39;:
+		case &#39;U&#39;:
+			if (long_flag) {
+				num = va_arg(ap, long int);
+			} else {
+				num = va_arg(ap, int);
+			}
+			print_num(out, data, num, 10, 0, width, ladjust, padc, 0);
+			break;
+
+		case &#39;x&#39;:
+			if (long_flag) {
+				num = va_arg(ap, long int);
+			} else {
+				num = va_arg(ap, int);
+			}
+			print_num(out, data, num, 16, 0, width, ladjust, padc, 0);
+			break;
+
+		case &#39;X&#39;:
+			if (long_flag) {
+				num = va_arg(ap, long int);
+			} else {
+				num = va_arg(ap, int);
+			}
+			print_num(out, data, num, 16, 0, width, ladjust, padc, 1);
+			break;
+
+		case &#39;c&#39;:
+			c = (char)va_arg(ap, int);
+			print_char(out, data, c, width, ladjust);
+			break;
+
+		case &#39;s&#39;:
+			s = (char *)va_arg(ap, char *);
+			print_str(out, data, s, width, ladjust);
+			break;
+
+		case &#39;\0&#39;:
+			fmt--;
+			break;
+
+		default:
+			/* output this char as it is */
+			out(data, fmt, 1);
+		}
+		fmt++;
+	}
+}
+</code></pre><h2 id=ps关于bootloader以及qemu的一些思考>ps:关于bootloader以及QEMU的一些思考<a hidden class=anchor aria-hidden=true href=#ps关于bootloader以及qemu的一些思考>#</a></h2><h2 id=0问题发现>0.问题发现<a hidden class=anchor aria-hidden=true href=#0问题发现>#</a></h2><p> 在完成lab1课下代码后，我尝试进行make run，发现不断输出<code>init.c: mips_init() is called</code>，如下图
+<img alt=image.png loading=lazy src=/img/image.png>
+​ 我认为是代码出现了问题，果断求助助教。在助教的帮助下，我逐渐理解了这个问题。</p><h2 id=1分析代码>1.分析代码<a hidden class=anchor aria-hidden=true href=#1分析代码>#</a></h2><p> 通过阅读代码，我们知道，输出这个字符串是start.S调用init.c中函数mips_init得到，由于不方便展示源码，<strong>这里只指出我是通过j指令完成了跳转，强调这一点是有必要的，如果使用jal进行跳转就不会出现这种状况，jal指令会改变$ra寄存器的值，与后边的论述矛盾。</strong> 通过对我们make的内核mos进行gdb调试，发现在程序执行完mips_init()之后总是跳回到start.S的第一行代码，如下图。
+<img alt=52fd8e355dba9fe1c58332de8bdb6fd.png loading=lazy src=/img/52fd8e355dba9fe1c58332de8bdb6fd.png>
+​ 通过上学期的计组知识，我们知道，从被调用者跳回到调用者是通过指令<code>jr $ra</code>实现的，这一点我们可以在gdb中展示汇编代码得到验证(gdb模式下直接输入disassemble)，如下图。
+<img alt=2d60f5d8497ef92340b385af439163f.png loading=lazy src=/img/2d60f5d8497ef92340b385af439163f.png>
+​ 这样问题就转化为<code>$ra</code>的值是什么？通过指令<code>i registers</code>可以查看各个寄存器的值。我们得到<code>$ra</code>寄存器的值如下图
+<img alt=981d818d3da49ea7a2a3e0e1a925e4f.png loading=lazy src=/img/981d818d3da49ea7a2a3e0e1a925e4f.png>
+​ 同时我们可以发现，start.S中第一条代码的地址即为此地址。
+<img alt=385fa0c26be69d5e844ce3c4c662318.png loading=lazy src=/img/385fa0c26be69d5e844ce3c4c662318.png>
+​ 但是在我们的代码中并没有存在对<code>$ra</code>赋值的操作，也就是说问题<strong>转化为<code>$ra</code>初值是如何得到的？</strong></p><h2 id=2bootloader>2.bootloader<a hidden class=anchor aria-hidden=true href=#2bootloader>#</a></h2><p> 通过以上的分析，我们知道在内核相关代码中，我们并没有对<code>$ra</code>的值有写操作，此时将目光放在启动内核之前的硬件初始化阶段，即<code>bootloader</code>。直接<code>make dbg</code>进入调试，我们会发现输出如下
+<img alt=e7a3a409b5977724741fc94ee3d2d08.png loading=lazy src=/img/e7a3a409b5977724741fc94ee3d2d08.png>
+​ <strong>这里的0xbfc00000即为bootloader的地址</strong>，gdb并不支持显示调试信息，此时我们可以使用汇编级调试，通过运行</p><pre tabindex=0><code>set disassemble-nextline-on
+</code></pre><p> 进入汇编调试模式，之后<code>ni</code>单步调试，我们发现在bootloader中进行了<strong>对寄存器的赋初值操作</strong>，这里只展示我们关心的对于<code>$ra</code>寄存器的赋值操作，如下图
+<img alt=b2ac38bbfc263bb6210eae09c74cb33.png loading=lazy src=/img/b2ac38bbfc263bb6210eae09c74cb33.png>
+​ 以上两条指令即为对<code>$ra</code>寄存器的赋值操作，<strong>更加值得注意的是下面两条汇编代码</strong>
+<img alt=ac0db2ef1f430b125c260dc7cfc89b4.png loading=lazy src=/img/ac0db2ef1f430b125c260dc7cfc89b4.png>
+​ 我们发现在完成硬件相关初始化之后，跳转到了内核入口，在实践中印证了指导书中的内容
+<img alt=image.png loading=lazy src=/img/image-1711121183635-1.png>
+​ 现在我们已经知道了<code>$ra</code>寄存器是在bootloader中进行赋初值，<strong>但是，bootloader是如何知道内核入口(kernel_entry)在哪里呢，即bootloader是如何知道要给<code>$ra</code>赋这个地址的?这与我们的实验环境QEMU有关。</strong></p><h2 id=3qemu>3.QEMU<a hidden class=anchor aria-hidden=true href=#3qemu>#</a></h2><p> 我们知道，实验中我们使用了QEMU自带的bootloader，实际上，qemu也处理了一部分软件流程，对bootloader进行了简化，这在init.c的注释部分给出了提示。
+<img alt=8e10c1cbc775fdf42f1c9a1b4d733fd.png loading=lazy src=/img/8e10c1cbc775fdf42f1c9a1b4d733fd.png>
+​ 直接去盒一下github上的源码！
+<img alt=6e4d8d8a263a601cf9f2f02eca49203.png loading=lazy src=/img/6e4d8d8a263a601cf9f2f02eca49203.png>
+​ 在源码中我们找到了对<code>$ra</code>赋值操作，进一步的，查找<code>kernel_entry</code>是如何得来的？进一步查阅源码，可以发现
+<img alt=3c4bffe45971963326277f98a06882a.png loading=lazy src=/img/3c4bffe45971963326277f98a06882a.png>
+​ 同时源码中给出了关于load_kernel()函数的定义，这里不再关心，<strong>我们可以得到结论：对<code>$ra</code>寄存器的赋值是在bootloader阶段由QEMU辅助完成的！</strong></p><h2 id=4-总结>4. 总结<a hidden class=anchor aria-hidden=true href=#4-总结>#</a></h2><p> 此篇讨论帖讨论了关于<code>$ra</code>寄存器初值的问题以及bootloader和QEMU的一些思考，如有错误敬请指正，这里特别感谢助教的指引和帮助！</p></div><footer class=post-footer><ul class=post-tags><li><a href=https://coder0xe.github.io/tags/mar/>Mar</a></li></ul><nav class=paginav><a class=prev href=https://coder0xe.github.io/posts/os-lab1%E5%AE%9E%E9%AA%8C%E6%8A%A5%E5%91%8A/><span class=title>« Prev</span><br><span>OS:lab1实验报告</span>
+</a><a class=next href=https://coder0xe.github.io/posts/os-lab0-%E5%AE%9E%E9%AA%8C%E6%8A%A5%E5%91%8A/><span class=title>Next »</span><br><span>OS-lab0-实验报告</span></a></nav><ul class=share-buttons><li><a target=_blank rel="noopener noreferrer" aria-label="share OS-lab1课下基础 on x" href="https://x.com/intent/tweet/?text=OS-lab1%e8%af%be%e4%b8%8b%e5%9f%ba%e7%a1%80&amp;url=https%3a%2f%2fcoder0xe.github.io%2fposts%2fos-lab1%25E8%25AF%25BE%25E4%25B8%258B%25E5%259F%25BA%25E7%25A1%2580%2f&amp;hashtags=Mar"><svg viewBox="0 0 512 512" height="30" width="30" fill="currentColor"><path d="M512 62.554V449.446C512 483.97 483.97 512 449.446 512H62.554C28.03 512 0 483.97.0 449.446V62.554C0 28.03 28.029.0 62.554.0H449.446C483.971.0 512 28.03 512 62.554zM269.951 190.75 182.567 75.216H56L207.216 272.95 63.9 436.783h61.366L235.9 310.383l96.667 126.4H456L298.367 228.367l134-153.151H371.033zM127.633 110h36.468l219.38 290.065H349.5z"/></svg></a></li><li><a target=_blank rel="noopener noreferrer" aria-label="share OS-lab1课下基础 on linkedin" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https%3a%2f%2fcoder0xe.github.io%2fposts%2fos-lab1%25E8%25AF%25BE%25E4%25B8%258B%25E5%259F%25BA%25E7%25A1%2580%2f&amp;title=OS-lab1%e8%af%be%e4%b8%8b%e5%9f%ba%e7%a1%80&amp;summary=OS-lab1%e8%af%be%e4%b8%8b%e5%9f%ba%e7%a1%80&amp;source=https%3a%2f%2fcoder0xe.github.io%2fposts%2fos-lab1%25E8%25AF%25BE%25E4%25B8%258B%25E5%259F%25BA%25E7%25A1%2580%2f"><svg viewBox="0 0 512 512" height="30" width="30" fill="currentColor"><path d="M449.446.0C483.971.0 512 28.03 512 62.554v386.892C512 483.97 483.97 512 449.446 512H62.554c-34.524.0-62.554-28.03-62.554-62.554V62.554c0-34.524 28.029-62.554 62.554-62.554h386.892zM160.461 423.278V197.561h-75.04v225.717h75.04zm270.539.0V293.839c0-69.333-37.018-101.586-86.381-101.586-39.804.0-57.634 21.891-67.617 37.266v-31.958h-75.021c.995 21.181.0 225.717.0 225.717h75.02V297.222c0-6.748.486-13.492 2.474-18.315 5.414-13.475 17.767-27.434 38.494-27.434 27.135.0 38.007 20.707 38.007 51.037v120.768H431zM123.448 88.722C97.774 88.722 81 105.601 81 127.724c0 21.658 16.264 39.002 41.455 39.002h.484c26.165.0 42.452-17.344 42.452-39.002-.485-22.092-16.241-38.954-41.943-39.002z"/></svg></a></li><li><a target=_blank rel="noopener noreferrer" aria-label="share OS-lab1课下基础 on reddit" href="https://reddit.com/submit?url=https%3a%2f%2fcoder0xe.github.io%2fposts%2fos-lab1%25E8%25AF%25BE%25E4%25B8%258B%25E5%259F%25BA%25E7%25A1%2580%2f&title=OS-lab1%e8%af%be%e4%b8%8b%e5%9f%ba%e7%a1%80"><svg viewBox="0 0 512 512" height="30" width="30" fill="currentColor"><path d="M449.446.0C483.971.0 512 28.03 512 62.554v386.892C512 483.97 483.97 512 449.446 512H62.554c-34.524.0-62.554-28.03-62.554-62.554V62.554c0-34.524 28.029-62.554 62.554-62.554h386.892zM446 265.638c0-22.964-18.616-41.58-41.58-41.58-11.211.0-21.361 4.457-28.841 11.666-28.424-20.508-67.586-33.757-111.204-35.278l18.941-89.121 61.884 13.157c.756 15.734 13.642 28.29 29.56 28.29 16.407.0 29.706-13.299 29.706-29.701.0-16.403-13.299-29.702-29.706-29.702-11.666.0-21.657 6.792-26.515 16.578l-69.105-14.69c-1.922-.418-3.939-.042-5.585 1.036-1.658 1.073-2.811 2.761-3.224 4.686l-21.152 99.438c-44.258 1.228-84.046 14.494-112.837 35.232-7.468-7.164-17.589-11.591-28.757-11.591-22.965.0-41.585 18.616-41.585 41.58.0 16.896 10.095 31.41 24.568 37.918-.639 4.135-.99 8.328-.99 12.576.0 63.977 74.469 115.836 166.33 115.836s166.334-51.859 166.334-115.836c0-4.218-.347-8.387-.977-12.493 14.564-6.47 24.735-21.034 24.735-38.001zM326.526 373.831c-20.27 20.241-59.115 21.816-70.534 21.816-11.428.0-50.277-1.575-70.522-21.82-3.007-3.008-3.007-7.882.0-10.889 3.003-2.999 7.882-3.003 10.885.0 12.777 12.781 40.11 17.317 59.637 17.317 19.522.0 46.86-4.536 59.657-17.321 3.016-2.999 7.886-2.995 10.885.008 3.008 3.011 3.003 7.882-.008 10.889zm-5.23-48.781c-16.373.0-29.701-13.324-29.701-29.698.0-16.381 13.328-29.714 29.701-29.714 16.378.0 29.706 13.333 29.706 29.714.0 16.374-13.328 29.698-29.706 29.698zM160.91 295.348c0-16.381 13.328-29.71 29.714-29.71 16.369.0 29.689 13.329 29.689 29.71.0 16.373-13.32 29.693-29.689 29.693-16.386.0-29.714-13.32-29.714-29.693z"/></svg></a></li><li><a target=_blank rel="noopener noreferrer" aria-label="share OS-lab1课下基础 on facebook" href="https://facebook.com/sharer/sharer.php?u=https%3a%2f%2fcoder0xe.github.io%2fposts%2fos-lab1%25E8%25AF%25BE%25E4%25B8%258B%25E5%259F%25BA%25E7%25A1%2580%2f"><svg viewBox="0 0 512 512" height="30" width="30" fill="currentColor"><path d="M449.446.0C483.971.0 512 28.03 512 62.554v386.892C512 483.97 483.97 512 449.446 512H342.978V319.085h66.6l12.672-82.621h-79.272v-53.617c0-22.603 11.073-44.636 46.58-44.636H425.6v-70.34s-32.71-5.582-63.982-5.582c-65.288.0-107.96 39.569-107.96 111.204v62.971h-72.573v82.621h72.573V512h-191.104c-34.524.0-62.554-28.03-62.554-62.554V62.554c0-34.524 28.029-62.554 62.554-62.554h386.892z"/></svg></a></li><li><a target=_blank rel="noopener noreferrer" aria-label="share OS-lab1课下基础 on whatsapp" href="https://api.whatsapp.com/send?text=OS-lab1%e8%af%be%e4%b8%8b%e5%9f%ba%e7%a1%80%20-%20https%3a%2f%2fcoder0xe.github.io%2fposts%2fos-lab1%25E8%25AF%25BE%25E4%25B8%258B%25E5%259F%25BA%25E7%25A1%2580%2f"><svg viewBox="0 0 512 512" height="30" width="30" fill="currentColor"><path d="M449.446.0C483.971.0 512 28.03 512 62.554v386.892C512 483.97 483.97 512 449.446 512H62.554c-34.524.0-62.554-28.03-62.554-62.554V62.554c0-34.524 28.029-62.554 62.554-62.554h386.892zm-58.673 127.703c-33.842-33.881-78.847-52.548-126.798-52.568-98.799.0-179.21 80.405-179.249 179.234-.013 31.593 8.241 62.428 23.927 89.612l-25.429 92.884 95.021-24.925c26.181 14.28 55.659 21.807 85.658 21.816h.074c98.789.0 179.206-80.413 179.247-179.243.018-47.895-18.61-92.93-52.451-126.81zM263.976 403.485h-.06c-26.734-.01-52.954-7.193-75.828-20.767l-5.441-3.229-56.386 14.792 15.05-54.977-3.542-5.637c-14.913-23.72-22.791-51.136-22.779-79.287.033-82.142 66.867-148.971 149.046-148.971 39.793.014 77.199 15.531 105.329 43.692 28.128 28.16 43.609 65.592 43.594 105.4-.034 82.149-66.866 148.983-148.983 148.984zm81.721-111.581c-4.479-2.242-26.499-13.075-30.604-14.571-4.105-1.495-7.091-2.241-10.077 2.241-2.986 4.483-11.569 14.572-14.182 17.562-2.612 2.988-5.225 3.364-9.703 1.12-4.479-2.241-18.91-6.97-36.017-22.23C231.8 264.15 222.81 249.484 220.198 245s-.279-6.908 1.963-9.14c2.016-2.007 4.48-5.232 6.719-7.847 2.24-2.615 2.986-4.484 4.479-7.472 1.493-2.99.747-5.604-.374-7.846-1.119-2.241-10.077-24.288-13.809-33.256-3.635-8.733-7.327-7.55-10.077-7.688-2.609-.13-5.598-.158-8.583-.158-2.986.0-7.839 1.121-11.944 5.604-4.105 4.484-15.675 15.32-15.675 37.364.0 22.046 16.048 43.342 18.287 46.332 2.24 2.99 31.582 48.227 76.511 67.627 10.685 4.615 19.028 7.371 25.533 9.434 10.728 3.41 20.492 2.929 28.209 1.775 8.605-1.285 26.499-10.833 30.231-21.295 3.732-10.464 3.732-19.431 2.612-21.298-1.119-1.869-4.105-2.99-8.583-5.232z"/></svg></a></li><li><a target=_blank rel="noopener noreferrer" aria-label="share OS-lab1课下基础 on telegram" href="https://telegram.me/share/url?text=OS-lab1%e8%af%be%e4%b8%8b%e5%9f%ba%e7%a1%80&amp;url=https%3a%2f%2fcoder0xe.github.io%2fposts%2fos-lab1%25E8%25AF%25BE%25E4%25B8%258B%25E5%259F%25BA%25E7%25A1%2580%2f"><svg viewBox="2 2 28 28" height="30" width="30" fill="currentColor"><path d="M26.49 29.86H5.5a3.37 3.37.0 01-2.47-1 3.35 3.35.0 01-1-2.47V5.48A3.36 3.36.0 013 3 3.37 3.37.0 015.5 2h21A3.38 3.38.0 0129 3a3.36 3.36.0 011 2.46V26.37a3.35 3.35.0 01-1 2.47 3.38 3.38.0 01-2.51 1.02zm-5.38-6.71a.79.79.0 00.85-.66L24.73 9.24a.55.55.0 00-.18-.46.62.62.0 00-.41-.17q-.08.0-16.53 6.11a.59.59.0 00-.41.59.57.57.0 00.43.52l4 1.24 1.61 4.83a.62.62.0 00.63.43.56.56.0 00.4-.17L16.54 20l4.09 3A.9.9.0 0021.11 23.15zM13.8 20.71l-1.21-4q8.72-5.55 8.78-5.55c.15.0.23.0.23.16a.18.18.0 010 .06s-2.51 2.3-7.52 6.8z"/></svg></a></li><li><a target=_blank rel="noopener noreferrer" aria-label="share OS-lab1课下基础 on ycombinator" href="https://news.ycombinator.com/submitlink?t=OS-lab1%e8%af%be%e4%b8%8b%e5%9f%ba%e7%a1%80&u=https%3a%2f%2fcoder0xe.github.io%2fposts%2fos-lab1%25E8%25AF%25BE%25E4%25B8%258B%25E5%259F%25BA%25E7%25A1%2580%2f"><svg width="30" height="30" viewBox="0 0 512 512" fill="currentColor"><path d="M449.446.0C483.971.0 512 28.03 512 62.554V449.446C512 483.97 483.97 512 449.446 512H62.554C28.03 512 0 483.97.0 449.446V62.554C0 28.03 28.029.0 62.554.0H449.446zM183.8767 87.9921h-62.034L230.6673 292.4508V424.0079h50.6655V292.4508L390.1575 87.9921H328.1233L256 238.2489z"/></svg></a></li></ul></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://coder0xe.github.io/>coder0xe's blog</a></span> ·
+<span>Powered by
+<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
+<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
+</a><script>let menu=document.getElementById("menu");if(menu){const e=localStorage.getItem("menu-scroll-position");e&&(menu.scrollLeft=parseInt(e,10)),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}}document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{const e=document.querySelector("html");e.dataset.theme==="dark"?(e.dataset.theme="light",localStorage.setItem("pref-theme","light")):(e.dataset.theme="dark",localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>

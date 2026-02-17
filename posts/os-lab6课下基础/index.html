@@ -1,0 +1,776 @@
+<!doctype html><html lang=en dir=auto data-theme=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>OS:lab6课下基础 | coder0xe's blog</title><meta name=keywords content="OS:lab6"><meta name=description content="OS:lab6课下基础"><meta name=author content="sudo"><link rel=canonical href=https://coder0xe.github.io/posts/os-lab6%E8%AF%BE%E4%B8%8B%E5%9F%BA%E7%A1%80/><link crossorigin=anonymous href=/assets/css/stylesheet.e4a36188e2c44563c1cc5ed1a2d0b8451a4f68c685114d738b97609f82dae050.css integrity="sha256-5KNhiOLERWPBzF7RotC4RRpPaMaFEU1zi5dgn4La4FA=" rel="preload stylesheet" as=style><link rel=icon href=https://coder0xe.github.io/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://coder0xe.github.io/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://coder0xe.github.io/favicon-32x32.png><link rel=apple-touch-icon href=https://coder0xe.github.io/apple-touch-icon.png><link rel=mask-icon href=https://coder0xe.github.io/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://coder0xe.github.io/posts/os-lab6%E8%AF%BE%E4%B8%8B%E5%9F%BA%E7%A1%80/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51);color-scheme:dark}.list{background:var(--theme)}.toc{background:var(--entry)}}@media(prefers-color-scheme:light){.list::-webkit-scrollbar-thumb{border-color:var(--code-bg)}}</style></noscript><script>localStorage.getItem("pref-theme")==="dark"?document.querySelector("html").dataset.theme="dark":localStorage.getItem("pref-theme")==="light"?document.querySelector("html").dataset.theme="light":window.matchMedia("(prefers-color-scheme: dark)").matches?document.querySelector("html").dataset.theme="dark":document.querySelector("html").dataset.theme="light"</script><meta property="og:url" content="https://coder0xe.github.io/posts/os-lab6%E8%AF%BE%E4%B8%8B%E5%9F%BA%E7%A1%80/"><meta property="og:site_name" content="coder0xe's blog"><meta property="og:title" content="OS:lab6课下基础"><meta property="og:description" content="OS:lab6课下基础"><meta property="og:locale" content="zh-CN"><meta property="og:type" content="article"><meta property="article:section" content="posts"><meta property="article:published_time" content="2024-06-08T18:27:50+08:00"><meta property="article:modified_time" content="2024-06-08T18:27:50+08:00"><meta property="article:tag" content="June"><meta name=twitter:card content="summary"><meta name=twitter:title content="OS:lab6课下基础"><meta name=twitter:description content="OS:lab6课下基础"><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Posts","item":"https://coder0xe.github.io/posts/"},{"@type":"ListItem","position":2,"name":"OS:lab6课下基础","item":"https://coder0xe.github.io/posts/os-lab6%E8%AF%BE%E4%B8%8B%E5%9F%BA%E7%A1%80/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"OS:lab6课下基础","name":"OS:lab6课下基础","description":"OS:lab6课下基础","keywords":["OS:lab6"],"articleBody":"OS:lab6课下基础 1. 管道 1.1 初窥管道 ​\t管道是一种典型的进程间单向通信的方式，分为有名管道和匿名管道两种，匿名管道只能在有公共祖先的进程间使用，在MOS中，我们要实现匿名管道。\n​\t管道是一种只存在于内存中的文件，在MOS中，父进程调用pipe函数时会打开两个新的文件描述符：一个表示只读端，一个表示只写端，两个描述符都映射到同一片内存区域。\n​\t在fork的配合下，子进程会复制父进程的两个文件描述符，从而在==父子进程间形成了四个(父子各有一读一写)的指向同一片内存区域的文件描述符，父子进程可根据需要关掉自己不用的一个，从而实现单向管道通信。==\n1.2 MOS中pipe的使用与实现 ​\tMOS中pipe的实现\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 int pipe(int pfd[2]) { int r; void *va; struct Fd *fd0, *fd1; /* Step 1: Allocate the file descriptors. */ if ((r = fd_alloc(\u0026fd0)) \u003c 0 || (r = syscall_mem_alloc(0, fd0, PTE_D | PTE_LIBRARY)) \u003c 0) { goto err; } if ((r = fd_alloc(\u0026fd1)) \u003c 0 || (r = syscall_mem_alloc(0, fd1, PTE_D | PTE_LIBRARY)) \u003c 0) { goto err1; } /* Step 2: Allocate and map the page for the 'Pipe' structure. */ va = fd2data(fd0); if ((r = syscall_mem_alloc(0, (void *)va, PTE_D | PTE_LIBRARY)) \u003c 0) { goto err2; } if ((r = syscall_mem_map(0, (void *)va, 0, (void *)fd2data(fd1), PTE_D | PTE_LIBRARY)) \u003c 0) { goto err3; } /* Step 3: Set up 'Fd' structures. */ fd0-\u003efd_dev_id = devpipe.dev_id; fd0-\u003efd_omode = O_RDONLY; fd1-\u003efd_dev_id = devpipe.dev_id; fd1-\u003efd_omode = O_WRONLY; debugf(\"[%08x] pipecreate \\n\", env-\u003eenv_id, vpt[VPN(va)]); /* Step 4: Save the result. */ pfd[0] = fd2num(fd0); pfd[1] = fd2num(fd1); return 0; err3: syscall_mem_unmap(0, (void *)va); err2: syscall_mem_unmap(0, fd1); err1: syscall_mem_unmap(0, fd0); err: return r; } 首先为fd0和fd1两个文件描述符分配空间(物理页)\n然后给fd0对应的虚拟地址分配一页物理内存并将fd1对应的虚拟地址映射到这一页物理内存\n通过管道pipe进行共享的实际上是共享页面机制PTE_LIBRARY\n1.3 管道的读写 ​\t关于管道结构体Pipe的定义如下\n1 2 3 4 5 struct Pipe { u_int p_rpos;\t// read position u_int p_wpos;\t// write position u_char p_buf[PIPE_SIZE]; // data buffer }; p_rpos：下一个要从管道读的数据的位置，读者更新\np_wpos：下一个要向管道写的数据的位置，写者更新\np_buf：缓冲区，类似于环形缓冲区，读写的位置i实际上是i%PAGE_SIZE\n​\t当读者从管道读取数据时，要将p_buf[p_rpos%PIPE_SIZE]拷贝走，然后读自增一。==需要注意的是，管道的缓冲区此时可能还没有被写入数据，所以如果管道数据为空，即当p_rpos\u003e=p_wpos时，进程切换到写者运行。==\n​\t当写者相管道中写入数据时，将数据存入p_buf[p_wpos%PIPE_SIZE]，然后写自增一。==需要注意缓冲区可能存在满溢的情况，所以需要在p_wpos-p_rpos","wordCount":"2141","inLanguage":"en","datePublished":"2024-06-08T18:27:50+08:00","dateModified":"2024-06-08T18:27:50+08:00","author":{"@type":"Person","name":"sudo"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://coder0xe.github.io/posts/os-lab6%E8%AF%BE%E4%B8%8B%E5%9F%BA%E7%A1%80/"},"publisher":{"@type":"Organization","name":"coder0xe's blog","logo":{"@type":"ImageObject","url":"https://coder0xe.github.io/favicon.ico"}}}</script></head><body id=top><header class=header><nav class=nav><div class=logo><a href=https://coder0xe.github.io/ accesskey=h title="coder0xe's blog (Alt + H)">coder0xe's blog</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://coder0xe.github.io/ title=首页><span>首页</span></a></li><li><a href=https://coder0xe.github.io/categories/ title=分类><span>分类</span></a></li><li><a href=https://coder0xe.github.io/tags/ title=标签><span>标签</span></a></li><li><a href=https://coder0xe.github.io/archives/ title=归档><span>归档</span></a></li><li><a href=https://coder0xe.github.io/search/ title=搜索><span>搜索</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://coder0xe.github.io/>Home</a>&nbsp;»&nbsp;<a href=https://coder0xe.github.io/posts/>Posts</a></div><h1 class="post-title entry-hint-parent">OS:lab6课下基础</h1><div class=post-description>OS:lab6课下基础</div><div class=post-meta><span title='2024-06-08 18:27:50 +0800 +0800'>June 8, 2024</span>&nbsp;·&nbsp;<span>11 min</span>&nbsp;·&nbsp;<span>sudo</span></div></header><div class=toc><details open><summary accesskey=c title="(Alt + C)"><span class=details>Table of Contents</span></summary><div class=inner><ul><li><a href=#oslab6%e8%af%be%e4%b8%8b%e5%9f%ba%e7%a1%80 aria-label=OS:lab6课下基础>OS:lab6课下基础</a><ul><li><a href=#1-%e7%ae%a1%e9%81%93 aria-label="1. 管道">1. 管道</a><ul><li><a href=#11-%e5%88%9d%e7%aa%a5%e7%ae%a1%e9%81%93 aria-label="1.1 初窥管道">1.1 初窥管道</a></li><li><a href=#12-mos%e4%b8%adpipe%e7%9a%84%e4%bd%bf%e7%94%a8%e4%b8%8e%e5%ae%9e%e7%8e%b0 aria-label="1.2 MOS中pipe的使用与实现">1.2 MOS中pipe的使用与实现</a></li><li><a href=#13-%e7%ae%a1%e9%81%93%e7%9a%84%e8%af%bb%e5%86%99 aria-label="1.3 管道的读写">1.3 管道的读写</a></li><li><a href=#14-%e7%ae%a1%e9%81%93%e5%85%b3%e9%97%ad%e7%9a%84%e6%ad%a3%e7%a1%ae%e5%88%a4%e6%96%ad aria-label="1.4 管道关闭的正确判断">1.4 管道关闭的正确判断</a></li></ul></li><li><a href=#2-shell aria-label="2. Shell">2. Shell</a><ul><li><a href=#21-%e5%ae%8c%e5%96%84spawn%e5%87%bd%e6%95%b0 aria-label="2.1 完善spawn函数">2.1 完善spawn函数</a></li><li><a href=#22-%e8%a7%a3%e9%87%8ashell%e5%91%bd%e4%bb%a4 aria-label="2.2 解释shell命令">2.2 解释shell命令</a></li></ul></li></ul></li></ul></div></details></div><div class=post-content><h1 id=oslab6课下基础>OS:lab6课下基础<a hidden class=anchor aria-hidden=true href=#oslab6课下基础>#</a></h1><h2 id=1-管道>1. 管道<a hidden class=anchor aria-hidden=true href=#1-管道>#</a></h2><h3 id=11-初窥管道>1.1 初窥管道<a hidden class=anchor aria-hidden=true href=#11-初窥管道>#</a></h3><p>​ 管道是一种典型的进程间单向通信的方式，分为有名管道和匿名管道两种，<strong>匿名管道只能在有公共祖先的进程间使用</strong>，在MOS中，我们要实现匿名管道。</p><p>​ <strong>管道是一种只存在于内存中的文件</strong>，在MOS中，父进程调用<code>pipe</code>函数时会<strong>打开两个新的文件描述符：一个表示只读端，一个表示只写端</strong>，两个描述符都映射到同一片内存区域。</p><p>​ 在<code>fork</code>的配合下，子进程会复制父进程的两个文件描述符，从而在==<strong>父子进程间形成了四个(父子各有一读一写)的指向同一片内存区域的文件描述符，父子进程可根据需要关掉自己不用的一个，从而实现单向管道通信。</strong>==</p><h3 id=12-mos中pipe的使用与实现>1.2 MOS中pipe的使用与实现<a hidden class=anchor aria-hidden=true href=#12-mos中pipe的使用与实现>#</a></h3><p>​ MOS中<code>pipe</code>的实现</p><div class=highlight><div style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">25
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">26
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">27
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">28
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">29
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">30
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">31
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">32
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">33
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">34
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">35
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">36
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">37
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">38
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">39
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">40
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">41
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">42
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">43
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">44
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">45
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">46
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">47
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-c data-lang=c><span style=display:flex><span><span style=color:#8be9fd>int</span> <span style=color:#50fa7b>pipe</span>(<span style=color:#8be9fd>int</span> pfd[<span style=color:#bd93f9>2</span>]) {
+</span></span><span style=display:flex><span>	<span style=color:#8be9fd>int</span> r;
+</span></span><span style=display:flex><span>	<span style=color:#8be9fd>void</span> <span style=color:#ff79c6>*</span>va;
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>struct</span> Fd <span style=color:#ff79c6>*</span>fd0, <span style=color:#ff79c6>*</span>fd1;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>/* Step 1: Allocate the file descriptors. */</span>
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>if</span> ((r <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>fd_alloc</span>(<span style=color:#ff79c6>&amp;</span>fd0)) <span style=color:#ff79c6>&lt;</span> <span style=color:#bd93f9>0</span> <span style=color:#ff79c6>||</span> (r <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>syscall_mem_alloc</span>(<span style=color:#bd93f9>0</span>, fd0, PTE_D <span style=color:#ff79c6>|</span> PTE_LIBRARY)) <span style=color:#ff79c6>&lt;</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>goto</span> err;
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>if</span> ((r <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>fd_alloc</span>(<span style=color:#ff79c6>&amp;</span>fd1)) <span style=color:#ff79c6>&lt;</span> <span style=color:#bd93f9>0</span> <span style=color:#ff79c6>||</span> (r <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>syscall_mem_alloc</span>(<span style=color:#bd93f9>0</span>, fd1, PTE_D <span style=color:#ff79c6>|</span> PTE_LIBRARY)) <span style=color:#ff79c6>&lt;</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>goto</span> err1;
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>/* Step 2: Allocate and map the page for the &#39;Pipe&#39; structure. */</span>
+</span></span><span style=display:flex><span>	va <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>fd2data</span>(fd0);
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>if</span> ((r <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>syscall_mem_alloc</span>(<span style=color:#bd93f9>0</span>, (<span style=color:#8be9fd>void</span> <span style=color:#ff79c6>*</span>)va, PTE_D <span style=color:#ff79c6>|</span> PTE_LIBRARY)) <span style=color:#ff79c6>&lt;</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>goto</span> err2;
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>if</span> ((r <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>syscall_mem_map</span>(<span style=color:#bd93f9>0</span>, (<span style=color:#8be9fd>void</span> <span style=color:#ff79c6>*</span>)va, <span style=color:#bd93f9>0</span>, (<span style=color:#8be9fd>void</span> <span style=color:#ff79c6>*</span>)<span style=color:#50fa7b>fd2data</span>(fd1), PTE_D <span style=color:#ff79c6>|</span> PTE_LIBRARY)) <span style=color:#ff79c6>&lt;</span>
+</span></span><span style=display:flex><span>	    <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>goto</span> err3;
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>/* Step 3: Set up &#39;Fd&#39; structures. */</span>
+</span></span><span style=display:flex><span>	fd0<span style=color:#ff79c6>-&gt;</span>fd_dev_id <span style=color:#ff79c6>=</span> devpipe.dev_id;
+</span></span><span style=display:flex><span>	fd0<span style=color:#ff79c6>-&gt;</span>fd_omode <span style=color:#ff79c6>=</span> O_RDONLY;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	fd1<span style=color:#ff79c6>-&gt;</span>fd_dev_id <span style=color:#ff79c6>=</span> devpipe.dev_id;
+</span></span><span style=display:flex><span>	fd1<span style=color:#ff79c6>-&gt;</span>fd_omode <span style=color:#ff79c6>=</span> O_WRONLY;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#50fa7b>debugf</span>(<span style=color:#f1fa8c>&#34;[%08x] pipecreate </span><span style=color:#f1fa8c>\n</span><span style=color:#f1fa8c>&#34;</span>, env<span style=color:#ff79c6>-&gt;</span>env_id, vpt[<span style=color:#50fa7b>VPN</span>(va)]);
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>/* Step 4: Save the result. */</span>
+</span></span><span style=display:flex><span>	pfd[<span style=color:#bd93f9>0</span>] <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>fd2num</span>(fd0);
+</span></span><span style=display:flex><span>	pfd[<span style=color:#bd93f9>1</span>] <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>fd2num</span>(fd1);
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>return</span> <span style=color:#bd93f9>0</span>;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#8be9fd;font-style:italic>err3</span>:
+</span></span><span style=display:flex><span>	<span style=color:#50fa7b>syscall_mem_unmap</span>(<span style=color:#bd93f9>0</span>, (<span style=color:#8be9fd>void</span> <span style=color:#ff79c6>*</span>)va);
+</span></span><span style=display:flex><span><span style=color:#8be9fd;font-style:italic>err2</span>:
+</span></span><span style=display:flex><span>	<span style=color:#50fa7b>syscall_mem_unmap</span>(<span style=color:#bd93f9>0</span>, fd1);
+</span></span><span style=display:flex><span><span style=color:#8be9fd;font-style:italic>err1</span>:
+</span></span><span style=display:flex><span>	<span style=color:#50fa7b>syscall_mem_unmap</span>(<span style=color:#bd93f9>0</span>, fd0);
+</span></span><span style=display:flex><span><span style=color:#8be9fd;font-style:italic>err</span>:
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>return</span> r;
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></td></tr></table></div></div><ul><li><p>首先为<code>fd0</code>和<code>fd1</code>两个文件描述符分配空间(物理页)</p></li><li><p>然后给<code>fd0</code>对应的虚拟地址分配一页物理内存并将<code>fd1</code>对应的虚拟地址映射到这一页物理内存</p></li><li><p><strong>通过管道pipe进行共享的实际上是共享页面机制PTE_LIBRARY</strong></p></li></ul><p><img alt=image-20240610195357171 loading=lazy src=/img/image-20240610195357171.png></p><p><img alt=image-20240610195405221 loading=lazy src=/img/image-20240610195405221.png></p><h3 id=13-管道的读写>1.3 管道的读写<a hidden class=anchor aria-hidden=true href=#13-管道的读写>#</a></h3><p>​ 关于管道结构体<code>Pipe</code>的定义如下</p><div class=highlight><div style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">1
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">2
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">3
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">4
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">5
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-c data-lang=c><span style=display:flex><span><span style=color:#ff79c6>struct</span> Pipe {
+</span></span><span style=display:flex><span>	u_int p_rpos;		 <span style=color:#6272a4>// read position
+</span></span></span><span style=display:flex><span>	u_int p_wpos;		 <span style=color:#6272a4>// write position
+</span></span></span><span style=display:flex><span>	u_char p_buf[PIPE_SIZE]; <span style=color:#6272a4>// data buffer
+</span></span></span><span style=display:flex><span>};
+</span></span></code></pre></td></tr></table></div></div><ul><li><p><code>p_rpos</code>：下一个要从管道读的数据的位置，读者更新</p></li><li><p><code>p_wpos</code>：下一个要向管道写的数据的位置，写者更新</p></li><li><p><code>p_buf</code>：缓冲区，类似于环形缓冲区，读写的位置<code>i</code>实际上是<code>i%PAGE_SIZE</code></p></li></ul><p>​ 当读者从管道读取数据时，要将<code>p_buf[p_rpos%PIPE_SIZE]</code>拷贝走，然后读自增一。==<strong>需要注意的是，管道的缓冲区此时可能还没有被写入数据，所以如果管道数据为空，即当<code>p_rpos>=p_wpos</code>时，进程切换到写者运行。</strong>==</p><p>​ 当写者相管道中写入数据时，将数据存入<code>p_buf[p_wpos%PIPE_SIZE]</code>，然后写自增一。<strong>==需要注意缓冲区可能存在满溢的情况，所以需要在<code>p_wpos-p_rpos&lt;PIPE_SIZE</code>时方可运行。==</strong></p><p>​ 当<strong>缓冲区出现空或满的情况时，我们还需要根据另一端是否关闭来判断是否要返回</strong>，另一端已经关闭则返回0即可，否则切换进程运行。</p><p>​ 判断管道另一端是否关闭<code>_pipe_is_closed</code>：对于一个匿名管道，我们分配了三页空间：读数据的文件描述符<code>rfd</code>一页，写数据的文件描述符<code>wfd</code>一页，剩下一页是被两个文件描述符共享的管道数据缓冲区<code>pipe</code>.</p><p>​ 则有<code>pageref(rfd)+pageref(wfd)=pageref(pipe)</code>，若另一端关闭则有<code>pageref(rfd)=pageref(pipe)</code>或<code>pageref(wfd)==pageref(pipe)</code></p><blockquote><p>Exercise 6.1 pipe_read, pipe_write, _pipe_is_closed</p></blockquote><div class=highlight><div style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">25
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">26
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">27
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">28
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">29
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">30
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">31
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">32
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">33
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">34
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">35
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">36
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">37
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">38
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">39
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">40
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">41
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">42
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">43
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">44
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">45
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">46
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">47
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">48
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">49
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">50
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">51
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">52
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">53
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-c data-lang=c><span style=display:flex><span><span style=color:#ff79c6>static</span> <span style=color:#8be9fd>int</span> <span style=color:#50fa7b>_pipe_is_closed</span>(<span style=color:#ff79c6>struct</span> Fd <span style=color:#ff79c6>*</span>fd, <span style=color:#ff79c6>struct</span> Pipe <span style=color:#ff79c6>*</span>p) {
+</span></span><span style=display:flex><span>	<span style=color:#8be9fd>int</span> fd_ref, pipe_ref, runs;
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>/* Exercise 6.1: Your code here. (1/3) */</span>
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>do</span> {
+</span></span><span style=display:flex><span>		runs <span style=color:#ff79c6>=</span> env<span style=color:#ff79c6>-&gt;</span>env_runs;
+</span></span><span style=display:flex><span>		fd_ref <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>pageref</span>(fd);
+</span></span><span style=display:flex><span>		pipe_ref <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>pageref</span>(p);
+</span></span><span style=display:flex><span>	} <span style=color:#ff79c6>while</span> (runs <span style=color:#ff79c6>!=</span> env<span style=color:#ff79c6>-&gt;</span>env_runs);
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>return</span> fd_ref <span style=color:#ff79c6>==</span> pipe_ref;
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#ff79c6>static</span> <span style=color:#8be9fd>int</span> <span style=color:#50fa7b>pipe_read</span>(<span style=color:#ff79c6>struct</span> Fd <span style=color:#ff79c6>*</span>fd, <span style=color:#8be9fd>void</span> <span style=color:#ff79c6>*</span>vbuf, u_int n, u_int offset) {
+</span></span><span style=display:flex><span>	<span style=color:#8be9fd>int</span> i;
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>struct</span> Pipe <span style=color:#ff79c6>*</span>p;
+</span></span><span style=display:flex><span>	<span style=color:#8be9fd>char</span> <span style=color:#ff79c6>*</span>rbuf;
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>/* Exercise 6.1: Your code here. (2/3) */</span>
+</span></span><span style=display:flex><span>	p <span style=color:#ff79c6>=</span> (<span style=color:#ff79c6>struct</span> Pipe <span style=color:#ff79c6>*</span>)<span style=color:#50fa7b>fd2data</span>(fd);
+</span></span><span style=display:flex><span>	rbuf <span style=color:#ff79c6>=</span> (<span style=color:#8be9fd>char</span> <span style=color:#ff79c6>*</span>)vbuf;
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>for</span> (i <span style=color:#ff79c6>=</span> <span style=color:#bd93f9>0</span>; i <span style=color:#ff79c6>&lt;</span> n; i<span style=color:#ff79c6>++</span>) {
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>while</span> (p<span style=color:#ff79c6>-&gt;</span>p_rpos <span style=color:#ff79c6>&gt;=</span> p<span style=color:#ff79c6>-&gt;</span>p_wpos) {
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>if</span> (i <span style=color:#ff79c6>&gt;=</span> <span style=color:#bd93f9>1</span> <span style=color:#ff79c6>||</span> <span style=color:#50fa7b>_pipe_is_closed</span>(fd, p)) {
+</span></span><span style=display:flex><span>				<span style=color:#ff79c6>return</span> i;
+</span></span><span style=display:flex><span>			} <span style=color:#ff79c6>else</span> {
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>syscall_yield</span>();
+</span></span><span style=display:flex><span>			}
+</span></span><span style=display:flex><span>		}
+</span></span><span style=display:flex><span>		rbuf[i] <span style=color:#ff79c6>=</span> p<span style=color:#ff79c6>-&gt;</span>p_buf[(p<span style=color:#ff79c6>-&gt;</span>p_rpos<span style=color:#ff79c6>++</span>) <span style=color:#ff79c6>%</span> PIPE_SIZE];
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>return</span> n;
+</span></span><span style=display:flex><span>}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#ff79c6>static</span> <span style=color:#8be9fd>int</span> <span style=color:#50fa7b>pipe_write</span>(<span style=color:#ff79c6>struct</span> Fd <span style=color:#ff79c6>*</span>fd, <span style=color:#ff79c6>const</span> <span style=color:#8be9fd>void</span> <span style=color:#ff79c6>*</span>vbuf, u_int n, u_int offset) {
+</span></span><span style=display:flex><span>	<span style=color:#8be9fd>int</span> i;
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>struct</span> Pipe <span style=color:#ff79c6>*</span>p;
+</span></span><span style=display:flex><span>	<span style=color:#8be9fd>char</span> <span style=color:#ff79c6>*</span>wbuf;
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>/* Exercise 6.1: Your code here. (3/3) */</span>
+</span></span><span style=display:flex><span>	p <span style=color:#ff79c6>=</span> (<span style=color:#ff79c6>struct</span> Pipe <span style=color:#ff79c6>*</span>)<span style=color:#50fa7b>fd2data</span>(fd);
+</span></span><span style=display:flex><span>	wbuf <span style=color:#ff79c6>=</span> (<span style=color:#8be9fd>char</span> <span style=color:#ff79c6>*</span>)vbuf;
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>for</span> (i <span style=color:#ff79c6>=</span> <span style=color:#bd93f9>0</span>; i <span style=color:#ff79c6>&lt;</span> n; i<span style=color:#ff79c6>++</span>) {
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>while</span> (p<span style=color:#ff79c6>-&gt;</span>p_wpos <span style=color:#ff79c6>-</span> p<span style=color:#ff79c6>-&gt;</span>p_rpos <span style=color:#ff79c6>&gt;=</span> PIPE_SIZE) {
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>if</span> (<span style=color:#50fa7b>_pipe_is_closed</span>(fd, p)) {
+</span></span><span style=display:flex><span>				<span style=color:#ff79c6>return</span> i;
+</span></span><span style=display:flex><span>			} <span style=color:#ff79c6>else</span> {
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>syscall_yield</span>();
+</span></span><span style=display:flex><span>			}
+</span></span><span style=display:flex><span>		}
+</span></span><span style=display:flex><span>		p<span style=color:#ff79c6>-&gt;</span>p_buf[(p<span style=color:#ff79c6>-&gt;</span>p_wpos<span style=color:#ff79c6>++</span>) <span style=color:#ff79c6>%</span> PIPE_SIZE] <span style=color:#ff79c6>=</span> wbuf[i];
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>return</span> n;
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></td></tr></table></div></div><h3 id=14-管道关闭的正确判断>1.4 管道关闭的正确判断<a hidden class=anchor aria-hidden=true href=#14-管道关闭的正确判断>#</a></h3><p>​ <strong>MOS采用时间片轮转的进程调度算法</strong>，抢占式的进程管理意味着用户进程随时可能会被打断。</p><p>​ 由于管道的共享性质，无法保证<code>_pipe_is_closed</code>用于管道另一端的判断一定返回正确的结果。</p><p>​ 进程使用<code>pipe_close</code>来关闭管道的端口，该函数的实质是通过两次系统调用<code>unmap</code>来解除文件描述符<code>fd</code>和数据缓存区<code>pipe</code>的映射。<strong>由于进程切换的存在，并不能保证两次系统调用可以在==同一进程时间片内被执行==，两次系统调用之间可能因为进程切换而被打断，故fd和对pipe的pp_ref也不能保证同步被写入，影响了管道是否关闭的正确性。</strong></p><blockquote><p>在MOS中只有syscall_*开头的系统调用函数是原子操作</p></blockquote><p>​ <code>_pipe_is_closed</code>函数返回正确结果的条件为</p><ul><li>写端关闭<code>pageref(p[0]) == pageref(pipe)</code></li><li>读端关闭<code>pageref(p[1]) == pageref(pipe)</code></li></ul><p>​ 对于更一般的情况，<code>pageref(p[0]) +pageref(p[1]) = pageref(pipe)</code>，**也就是说pipe的引用次数总比pipe要高。**在<code>close</code>函数中</p><div class=highlight><div style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">1
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">2
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">3
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">4
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">5
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">6
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-c data-lang=c><span style=display:flex><span><span style=color:#ff79c6>static</span> <span style=color:#8be9fd>int</span> <span style=color:#50fa7b>pipe_close</span>(<span style=color:#ff79c6>struct</span> Fd <span style=color:#ff79c6>*</span>fd) {
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>// Unmap &#39;fd&#39; and the referred Pipe.
+</span></span></span><span style=display:flex><span>    <span style=color:#50fa7b>syscall_mem_unmap</span>(<span style=color:#bd93f9>0</span>, (<span style=color:#8be9fd>void</span> <span style=color:#ff79c6>*</span>)<span style=color:#50fa7b>fd2data</span>(fd));
+</span></span><span style=display:flex><span>	<span style=color:#50fa7b>syscall_mem_unmap</span>(<span style=color:#bd93f9>0</span>, fd);
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>return</span> <span style=color:#bd93f9>0</span>;
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></td></tr></table></div></div><p>​ 先解除<code>pipe</code>映射再解除<code>fd</code>映射，会使pipe引用次数-1先于fd，<strong>在两个<code>unmap</code>间隙导致<code>pageref(pipe)=pageref(fd)</code></strong>，这一点可以通过控制<code>fd</code>与<code>pipe</code>的<code>map/unmap</code>顺序解决进程竞争导致的非同步写入问题：使fd的引用次数-1先于pipe，这样即使在两个<code>unmap</code>的间隙，也有<code>pageref(pipe) > pageref(fd)</code>成立。</p><p>​ ==或者说改变<code>map/unmap</code>顺序使得<code>pageref(pipe) > pageref(fd)</code>在非管道关闭时恒成立==</p><blockquote><p>Exercise 6.2 调整pipe_close中的umap顺序</p><ul><li>先解除fd</li><li>再解除pipe</li></ul></blockquote><div class=highlight><div style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">1
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">2
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">3
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">4
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">5
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">6
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-c data-lang=c><span style=display:flex><span><span style=color:#ff79c6>static</span> <span style=color:#8be9fd>int</span> <span style=color:#50fa7b>pipe_close</span>(<span style=color:#ff79c6>struct</span> Fd <span style=color:#ff79c6>*</span>fd) {
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>// Unmap &#39;fd&#39; and the referred Pipe.
+</span></span></span><span style=display:flex><span>	<span style=color:#50fa7b>syscall_mem_unmap</span>(<span style=color:#bd93f9>0</span>, fd);
+</span></span><span style=display:flex><span>	<span style=color:#50fa7b>syscall_mem_unmap</span>(<span style=color:#bd93f9>0</span>, (<span style=color:#8be9fd>void</span> <span style=color:#ff79c6>*</span>)<span style=color:#50fa7b>fd2data</span>(fd));
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>return</span> <span style=color:#bd93f9>0</span>;
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></td></tr></table></div></div><blockquote><p>Exercise 6.3 调整dup函数中的map顺序</p><ul><li>先映射pipe</li><li>后映射fd</li></ul></blockquote><div class=highlight><div style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">25
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">26
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">27
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">28
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">29
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">30
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">31
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">32
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">33
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">34
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">35
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">36
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">37
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">38
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">39
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">40
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">41
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">42
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">43
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">44
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">45
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">46
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">47
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">48
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-c data-lang=c><span style=display:flex><span><span style=color:#8be9fd>int</span> <span style=color:#50fa7b>dup</span>(<span style=color:#8be9fd>int</span> oldfdnum, <span style=color:#8be9fd>int</span> newfdnum) {
+</span></span><span style=display:flex><span>	<span style=color:#8be9fd>int</span> i, r;
+</span></span><span style=display:flex><span>	<span style=color:#8be9fd>void</span> <span style=color:#ff79c6>*</span>ova, <span style=color:#ff79c6>*</span>nva;
+</span></span><span style=display:flex><span>	u_int pte;
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>struct</span> Fd <span style=color:#ff79c6>*</span>oldfd, <span style=color:#ff79c6>*</span>newfd;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>/* Step 1: Check if &#39;oldnum&#39; is valid. if not, return an error code, or get &#39;fd&#39;. */</span>
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>if</span> ((r <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>fd_lookup</span>(oldfdnum, <span style=color:#ff79c6>&amp;</span>oldfd)) <span style=color:#ff79c6>&lt;</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>return</span> r;
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>/* Step 2: Close &#39;newfdnum&#39; to reset content. */</span>
+</span></span><span style=display:flex><span>	<span style=color:#50fa7b>close</span>(newfdnum);
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>/* Step 3: Get &#39;newfd&#39; reffered by &#39;newfdnum&#39;. */</span>
+</span></span><span style=display:flex><span>	newfd <span style=color:#ff79c6>=</span> (<span style=color:#ff79c6>struct</span> Fd <span style=color:#ff79c6>*</span>)<span style=color:#50fa7b>INDEX2FD</span>(newfdnum);
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>/* Step 4: Get data address. */</span>
+</span></span><span style=display:flex><span>	ova <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>fd2data</span>(oldfd);
+</span></span><span style=display:flex><span>	nva <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>fd2data</span>(newfd);
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>/* Step 5: Dunplicate the data and &#39;fd&#39; self from old to new. */</span>
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>if</span> (vpd[<span style=color:#50fa7b>PDX</span>(ova)]) {
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>for</span> (i <span style=color:#ff79c6>=</span> <span style=color:#bd93f9>0</span>; i <span style=color:#ff79c6>&lt;</span> PDMAP; i <span style=color:#ff79c6>+=</span> PTMAP) {
+</span></span><span style=display:flex><span>			pte <span style=color:#ff79c6>=</span> vpt[<span style=color:#50fa7b>VPN</span>(ova <span style=color:#ff79c6>+</span> i)];
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>if</span> (pte <span style=color:#ff79c6>&amp;</span> PTE_V) {
+</span></span><span style=display:flex><span>				<span style=color:#6272a4>// should be no error here -- pd is already allocated
+</span></span></span><span style=display:flex><span>				<span style=color:#ff79c6>if</span> ((r <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>syscall_mem_map</span>(<span style=color:#bd93f9>0</span>, (<span style=color:#8be9fd>void</span> <span style=color:#ff79c6>*</span>)(ova <span style=color:#ff79c6>+</span> i), <span style=color:#bd93f9>0</span>, (<span style=color:#8be9fd>void</span> <span style=color:#ff79c6>*</span>)(nva <span style=color:#ff79c6>+</span> i),
+</span></span><span style=display:flex><span>							 pte <span style=color:#ff79c6>&amp;</span> (PTE_D <span style=color:#ff79c6>|</span> PTE_LIBRARY))) <span style=color:#ff79c6>&lt;</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>					<span style=color:#ff79c6>goto</span> err;
+</span></span><span style=display:flex><span>				}
+</span></span><span style=display:flex><span>			}
+</span></span><span style=display:flex><span>		}
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>if</span> ((r <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>syscall_mem_map</span>(<span style=color:#bd93f9>0</span>, oldfd, <span style=color:#bd93f9>0</span>, newfd, vpt[<span style=color:#50fa7b>VPN</span>(oldfd)] <span style=color:#ff79c6>&amp;</span> (PTE_D <span style=color:#ff79c6>|</span> PTE_LIBRARY))) <span style=color:#ff79c6>&lt;</span><span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>goto</span> err;
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>return</span> newfdnum;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#8be9fd;font-style:italic>err</span>:
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>/* If error occurs, cancel all map operations. */</span>
+</span></span><span style=display:flex><span>	<span style=color:#50fa7b>panic_on</span>(<span style=color:#50fa7b>syscall_mem_unmap</span>(<span style=color:#bd93f9>0</span>, newfd));
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>for</span> (i <span style=color:#ff79c6>=</span> <span style=color:#bd93f9>0</span>; i <span style=color:#ff79c6>&lt;</span> PDMAP; i <span style=color:#ff79c6>+=</span> PTMAP) {		<span style=color:#50fa7b>panic_on</span>(<span style=color:#50fa7b>syscall_mem_unmap</span>(<span style=color:#bd93f9>0</span>, (<span style=color:#8be9fd>void</span> <span style=color:#ff79c6>*</span>)(nva <span style=color:#ff79c6>+</span> i)));
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>return</span> r;
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></td></tr></table></div></div><h2 id=2-shell>2. Shell<a hidden class=anchor aria-hidden=true href=#2-shell>#</a></h2><blockquote><p>shell指“为使用者提供操作界面”的软件，他接受用户的命令然后调用相关的应用程序，MOS实现了<code>CLI shell</code></p></blockquote><h3 id=21-完善spawn函数>2.1 完善spawn函数<a hidden class=anchor aria-hidden=true href=#21-完善spawn函数>#</a></h3><p>​ <code>spawn</code>函数的作用是帮助我们调用文件系统中的可执行文件并执行(初步观察我们的命令就是通过<code>spawn</code>函数运行的，例如输入<code>ls.b</code>，调用可执行文件<code>ls.b</code>)。</p><blockquote><p>Exercise 6.5 spawn</p><ul><li>文件系统打开对应的文件(二进制ELF，*.b)</li><li>申请新的进程控制块</li><li>将目标程序加载到子进程的地址空间中并为他们分配物理页面</li><li>为子进程初始化地址空间</li><li>设置子进程的寄存器</li><li>将父进程的共享页面映射到子进程的地址空间</li><li>设置子进程可执行</li></ul></blockquote><div class=highlight><div style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">  1
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">  2
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">  3
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">  4
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">  5
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">  6
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">  7
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">  8
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">  9
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 10
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 11
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 12
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 13
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 14
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 15
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 16
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 17
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 18
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 19
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 20
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 21
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 22
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 23
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 24
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 25
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 26
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 27
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 28
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 29
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 30
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 31
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 32
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 33
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 34
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 35
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 36
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 37
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 38
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 39
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 40
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 41
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 42
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 43
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 44
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 45
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 46
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 47
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 48
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 49
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 50
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 51
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 52
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 53
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 54
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 55
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 56
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 57
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 58
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 59
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 60
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 61
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 62
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 63
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 64
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 65
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 66
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 67
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 68
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 69
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 70
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 71
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 72
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 73
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 74
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 75
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 76
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 77
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 78
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 79
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 80
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 81
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 82
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 83
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 84
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 85
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 86
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 87
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 88
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 89
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 90
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 91
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 92
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 93
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 94
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 95
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 96
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 97
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 98
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 99
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">100
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">101
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">102
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">103
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">104
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">105
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">106
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">107
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">108
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">109
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">110
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">111
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">112
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">113
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">114
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">115
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">116
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">117
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">118
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">119
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">120
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">121
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">122
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">123
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-c data-lang=c><span style=display:flex><span><span style=color:#8be9fd>int</span> <span style=color:#50fa7b>spawn</span>(<span style=color:#8be9fd>char</span> <span style=color:#ff79c6>*</span>prog, <span style=color:#8be9fd>char</span> <span style=color:#ff79c6>**</span>argv) {
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>// Step 1: Open the file &#39;prog&#39; (the path of the program).
+</span></span></span><span style=display:flex><span>	<span style=color:#6272a4>// Return the error if &#39;open&#39; fails.
+</span></span></span><span style=display:flex><span>	<span style=color:#8be9fd>int</span> fd;
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>if</span> ((fd <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>open</span>(prog, O_RDONLY)) <span style=color:#ff79c6>&lt;</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>return</span> fd;
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>// Step 2: Read the ELF header (of type &#39;Elf32_Ehdr&#39;) from the file into &#39;elfbuf&#39; using
+</span></span></span><span style=display:flex><span>	<span style=color:#6272a4>// &#39;readn()&#39;.
+</span></span></span><span style=display:flex><span>	<span style=color:#6272a4>// If that fails (where &#39;readn&#39; returns a different size than expected),
+</span></span></span><span style=display:flex><span>	<span style=color:#6272a4>// set &#39;r&#39; and &#39;goto err&#39; to close the file and return the error.
+</span></span></span><span style=display:flex><span>	<span style=color:#8be9fd>int</span> r;
+</span></span><span style=display:flex><span>	u_char elfbuf[<span style=color:#bd93f9>512</span>];
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>/* Exercise 6.4: Your code here. (1/6) */</span>
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>if</span> ((r <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>readn</span>(fd, elfbuf, <span style=color:#ff79c6>sizeof</span>(Elf32_Ehdr))) <span style=color:#ff79c6>!=</span> <span style=color:#ff79c6>sizeof</span>(Elf32_Ehdr)) {
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>if</span> (r <span style=color:#ff79c6>&gt;=</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>			r <span style=color:#ff79c6>=</span> <span style=color:#ff79c6>-</span>E_NOT_EXEC;
+</span></span><span style=display:flex><span>		}
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>goto</span> err;
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>const</span> Elf32_Ehdr <span style=color:#ff79c6>*</span>ehdr <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>elf_from</span>(elfbuf, <span style=color:#ff79c6>sizeof</span>(Elf32_Ehdr));
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>if</span> (<span style=color:#ff79c6>!</span>ehdr) {
+</span></span><span style=display:flex><span>		r <span style=color:#ff79c6>=</span> <span style=color:#ff79c6>-</span>E_NOT_EXEC;
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>goto</span> err;
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	u_long entrypoint <span style=color:#ff79c6>=</span> ehdr<span style=color:#ff79c6>-&gt;</span>e_entry;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>// Step 3: Create a child using &#39;syscall_exofork()&#39; and store its envid in &#39;child&#39;.
+</span></span></span><span style=display:flex><span>	<span style=color:#6272a4>// If the syscall fails, set &#39;r&#39; and &#39;goto err&#39;.
+</span></span></span><span style=display:flex><span>	u_int child;
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>/* Exercise 6.4: Your code here. (2/6) */</span>
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>if</span> ((child <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>syscall_exofork</span>()) <span style=color:#ff79c6>&lt;</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>		r <span style=color:#ff79c6>=</span> child;
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>goto</span> err;
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>// Step 4: Use &#39;init_stack(child, argv, &amp;sp)&#39; to initialize the stack of the child.
+</span></span></span><span style=display:flex><span>	<span style=color:#6272a4>// &#39;goto err1&#39; if that fails.
+</span></span></span><span style=display:flex><span>	u_int sp;
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>/* Exercise 6.4: Your code here. (3/6) */</span>
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>if</span> ((r <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>init_stack</span>(child, argv, <span style=color:#ff79c6>&amp;</span>sp)) <span style=color:#ff79c6>&lt;</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>goto</span> err1;
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>// Step 5: Load the ELF segments in the file into the child&#39;s memory.
+</span></span></span><span style=display:flex><span>	<span style=color:#6272a4>// This is similar to &#39;load_icode()&#39; in the kernel.
+</span></span></span><span style=display:flex><span>	<span style=color:#8be9fd>size_t</span> ph_off;
+</span></span><span style=display:flex><span>	<span style=color:#50fa7b>ELF_FOREACH_PHDR_OFF</span> (ph_off, ehdr) {
+</span></span><span style=display:flex><span>		<span style=color:#6272a4>// Read the program header in the file with offset &#39;ph_off&#39; and length
+</span></span></span><span style=display:flex><span>		<span style=color:#6272a4>// &#39;ehdr-&gt;e_phentsize&#39; into &#39;elfbuf&#39;.
+</span></span></span><span style=display:flex><span>		<span style=color:#6272a4>// &#39;goto err1&#39; on failure.
+</span></span></span><span style=display:flex><span>		<span style=color:#6272a4>// You may want to use &#39;seek&#39; and &#39;readn&#39;.
+</span></span></span><span style=display:flex><span>		<span style=color:#6272a4>/* Exercise 6.4: Your code here. (4/6) */</span>
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>if</span> ((r <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>seek</span>(fd, ph_off)) <span style=color:#ff79c6>&lt;</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>goto</span> err1;
+</span></span><span style=display:flex><span>		} 
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>if</span> ((r <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>read</span>(fd, elfbuf, ehdr<span style=color:#ff79c6>-&gt;</span>e_phentsize)) <span style=color:#ff79c6>!=</span> ehdr<span style=color:#ff79c6>-&gt;</span>e_phentsize) {
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>if</span> (r <span style=color:#ff79c6>&gt;=</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>				r <span style=color:#ff79c6>=</span> <span style=color:#ff79c6>-</span>E_NOT_EXEC;
+</span></span><span style=display:flex><span>				<span style=color:#ff79c6>goto</span> err1;
+</span></span><span style=display:flex><span>			}
+</span></span><span style=display:flex><span>		}
+</span></span><span style=display:flex><span>		Elf32_Phdr <span style=color:#ff79c6>*</span>ph <span style=color:#ff79c6>=</span> (Elf32_Phdr <span style=color:#ff79c6>*</span>)elfbuf;
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>if</span> (ph<span style=color:#ff79c6>-&gt;</span>p_type <span style=color:#ff79c6>==</span> PT_LOAD) {
+</span></span><span style=display:flex><span>			<span style=color:#8be9fd>void</span> <span style=color:#ff79c6>*</span>bin;
+</span></span><span style=display:flex><span>			<span style=color:#6272a4>// Read and map the ELF data in the file at &#39;ph-&gt;p_offset&#39; into our memory
+</span></span></span><span style=display:flex><span>			<span style=color:#6272a4>// using &#39;read_map()&#39;.
+</span></span></span><span style=display:flex><span>			<span style=color:#6272a4>// &#39;goto err1&#39; if that fails.
+</span></span></span><span style=display:flex><span>			<span style=color:#6272a4>/* Exercise 6.4: Your code here. (5/6) */</span>
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>if</span> ((r <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>read_map</span>(fd, ph<span style=color:#ff79c6>-&gt;</span>p_offset, <span style=color:#ff79c6>&amp;</span>bin)) <span style=color:#ff79c6>&lt;</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>				<span style=color:#ff79c6>goto</span> err1;
+</span></span><span style=display:flex><span>			}
+</span></span><span style=display:flex><span>			<span style=color:#6272a4>// Load the segment &#39;ph&#39; into the child&#39;s memory using &#39;elf_load_seg()&#39;.
+</span></span></span><span style=display:flex><span>			<span style=color:#6272a4>// Use &#39;spawn_mapper&#39; as the callback, and &#39;&amp;child&#39; as its data.
+</span></span></span><span style=display:flex><span>			<span style=color:#6272a4>// &#39;goto err1&#39; if that fails.
+</span></span></span><span style=display:flex><span>			<span style=color:#6272a4>/* Exercise 6.4: Your code here. (6/6) */</span>
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>if</span> ((r <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>elf_load_seg</span>(ph, bin, spawn_mapper, <span style=color:#ff79c6>&amp;</span>child)) <span style=color:#ff79c6>!=</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>				<span style=color:#ff79c6>goto</span> err1;
+</span></span><span style=display:flex><span>			}
+</span></span><span style=display:flex><span>		}
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#50fa7b>close</span>(fd);
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>struct</span> Trapframe tf <span style=color:#ff79c6>=</span> envs[<span style=color:#50fa7b>ENVX</span>(child)].env_tf;
+</span></span><span style=display:flex><span>	tf.cp0_epc <span style=color:#ff79c6>=</span> entrypoint;
+</span></span><span style=display:flex><span>	tf.regs[<span style=color:#bd93f9>29</span>] <span style=color:#ff79c6>=</span> sp;
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>if</span> ((r <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>syscall_set_trapframe</span>(child, <span style=color:#ff79c6>&amp;</span>tf)) <span style=color:#ff79c6>!=</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>goto</span> err2;
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#6272a4>// Pages with &#39;PTE_LIBRARY&#39; set are shared between the parent and the child.
+</span></span></span><span style=display:flex><span>	<span style=color:#ff79c6>for</span> (u_int pdeno <span style=color:#ff79c6>=</span> <span style=color:#bd93f9>0</span>; pdeno <span style=color:#ff79c6>&lt;=</span> <span style=color:#50fa7b>PDX</span>(USTACKTOP); pdeno<span style=color:#ff79c6>++</span>) {
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>if</span> (<span style=color:#ff79c6>!</span>(vpd[pdeno] <span style=color:#ff79c6>&amp;</span> PTE_V)) {
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>continue</span>;
+</span></span><span style=display:flex><span>		}
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>for</span> (u_int pteno <span style=color:#ff79c6>=</span> <span style=color:#bd93f9>0</span>; pteno <span style=color:#ff79c6>&lt;=</span> <span style=color:#50fa7b>PTX</span>(<span style=color:#ff79c6>~</span><span style=color:#bd93f9>0</span>); pteno<span style=color:#ff79c6>++</span>) {
+</span></span><span style=display:flex><span>			u_int pn <span style=color:#ff79c6>=</span> (pdeno <span style=color:#ff79c6>&lt;&lt;</span> <span style=color:#bd93f9>10</span>) <span style=color:#ff79c6>+</span> pteno;
+</span></span><span style=display:flex><span>			u_int perm <span style=color:#ff79c6>=</span> vpt[pn] <span style=color:#ff79c6>&amp;</span> ((<span style=color:#bd93f9>1</span> <span style=color:#ff79c6>&lt;&lt;</span> PGSHIFT) <span style=color:#ff79c6>-</span> <span style=color:#bd93f9>1</span>);
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>if</span> ((perm <span style=color:#ff79c6>&amp;</span> PTE_V) <span style=color:#ff79c6>&amp;&amp;</span> (perm <span style=color:#ff79c6>&amp;</span> PTE_LIBRARY)) {
+</span></span><span style=display:flex><span>				<span style=color:#8be9fd>void</span> <span style=color:#ff79c6>*</span>va <span style=color:#ff79c6>=</span> (<span style=color:#8be9fd>void</span> <span style=color:#ff79c6>*</span>)(pn <span style=color:#ff79c6>&lt;&lt;</span> PGSHIFT);
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>				<span style=color:#ff79c6>if</span> ((r <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>syscall_mem_map</span>(<span style=color:#bd93f9>0</span>, va, child, va, perm)) <span style=color:#ff79c6>&lt;</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>					<span style=color:#50fa7b>debugf</span>(<span style=color:#f1fa8c>&#34;spawn: syscall_mem_map %x %x: %d</span><span style=color:#f1fa8c>\n</span><span style=color:#f1fa8c>&#34;</span>, va, child, r);
+</span></span><span style=display:flex><span>					<span style=color:#ff79c6>goto</span> err2;
+</span></span><span style=display:flex><span>				}
+</span></span><span style=display:flex><span>			}
+</span></span><span style=display:flex><span>		}
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>if</span> ((r <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>syscall_set_env_status</span>(child, ENV_RUNNABLE)) <span style=color:#ff79c6>&lt;</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>		<span style=color:#50fa7b>debugf</span>(<span style=color:#f1fa8c>&#34;spawn: syscall_set_env_status %x: %d</span><span style=color:#f1fa8c>\n</span><span style=color:#f1fa8c>&#34;</span>, child, r);
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>goto</span> err2;
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>return</span> child;
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span><span style=color:#8be9fd;font-style:italic>err2</span>:
+</span></span><span style=display:flex><span>	<span style=color:#50fa7b>syscall_env_destroy</span>(child);
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>return</span> r;
+</span></span><span style=display:flex><span><span style=color:#8be9fd;font-style:italic>err1</span>:
+</span></span><span style=display:flex><span>	<span style=color:#50fa7b>syscall_env_destroy</span>(child);
+</span></span><span style=display:flex><span><span style=color:#8be9fd;font-style:italic>err</span>:
+</span></span><span style=display:flex><span>	<span style=color:#50fa7b>close</span>(fd);
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>return</span> r;
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></td></tr></table></div></div><h3 id=22-解释shell命令>2.2 解释shell命令<a hidden class=anchor aria-hidden=true href=#22-解释shell命令>#</a></h3><p>​ 我们在<code>user</code>目录下提供了<code>ls.c , cat.c , echo.c</code>等几个用户程序模拟<code>Linux</code>下同名命令(后续Shell挑战性任务可以参考MIT-xv6中其他命令的实现)，当我们输入命令时，<code>Shell</code>程序<code>sh.c</code>调用了<code>spawn</code>函数，使其能够读取相应的可执行文件，并加载到新进程中运行。</p><p>​ 解释shell命令通过<code>parsecmd</code>完成，或者说就是解析输入的字符串。</p><ul><li>如果碰到重定向符号 <code>&lt; | ></code><ul><li>读下一个单词，打开这个单词代表的文件，然后将文件内容复制给标准输入或标准输出</li></ul></li><li>如果碰到管道符号<code>|</code><ul><li>首先建立管道<code>pipe</code>，然后<code>fork</code></li><li>对于父进程，将管道的写者复制给标准输出</li><li>对于子进程，将管道的读者复制给标准输入</li></ul></li></ul><blockquote><p>Exercise 6.5 parsecmd</p></blockquote><div class=highlight><div style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 1
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 2
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 3
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 4
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 5
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 6
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 7
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 8
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f"> 9
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">10
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">11
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">12
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">13
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">14
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">15
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">16
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">17
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">18
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">19
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">20
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">21
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">22
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">23
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">24
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">25
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">26
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">27
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">28
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">29
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">30
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">31
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">32
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">33
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">34
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">35
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">36
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">37
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">38
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">39
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">40
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">41
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">42
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">43
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">44
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">45
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">46
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">47
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">48
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">49
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">50
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">51
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">52
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">53
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">54
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">55
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">56
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">57
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">58
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">59
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">60
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">61
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">62
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">63
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">64
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">65
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">66
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">67
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">68
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">69
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">70
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">71
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">72
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">73
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">74
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">75
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">76
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">77
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">78
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">79
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">80
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">81
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">82
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">83
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">84
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">85
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">86
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">87
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">88
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">89
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">90
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">91
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">92
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">93
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">94
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">95
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">96
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-c data-lang=c><span style=display:flex><span><span style=color:#8be9fd>int</span> <span style=color:#50fa7b>parsecmd</span>(<span style=color:#8be9fd>char</span> <span style=color:#ff79c6>**</span>argv, <span style=color:#8be9fd>int</span> <span style=color:#ff79c6>*</span>rightpipe) {
+</span></span><span style=display:flex><span>	<span style=color:#8be9fd>int</span> argc <span style=color:#ff79c6>=</span> <span style=color:#bd93f9>0</span>;
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>while</span> (<span style=color:#bd93f9>1</span>) {
+</span></span><span style=display:flex><span>		<span style=color:#8be9fd>char</span> <span style=color:#ff79c6>*</span>t;
+</span></span><span style=display:flex><span>		<span style=color:#8be9fd>int</span> fd, r;
+</span></span><span style=display:flex><span>		<span style=color:#8be9fd>int</span> c <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>gettoken</span>(<span style=color:#bd93f9>0</span>, <span style=color:#ff79c6>&amp;</span>t);
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>switch</span> (c) {
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>case</span> <span style=color:#bd93f9>0</span><span style=color:#ff79c6>:</span>
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>return</span> argc;
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>case</span> <span style=color:#f1fa8c>&#39;w&#39;</span><span style=color:#ff79c6>:</span>
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>if</span> (argc <span style=color:#ff79c6>&gt;=</span> MAXARGS) {
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>debugf</span>(<span style=color:#f1fa8c>&#34;too many arguments</span><span style=color:#f1fa8c>\n</span><span style=color:#f1fa8c>&#34;</span>);
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>exit</span>();
+</span></span><span style=display:flex><span>			}
+</span></span><span style=display:flex><span>			argv[argc<span style=color:#ff79c6>++</span>] <span style=color:#ff79c6>=</span> t;
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>break</span>;
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>case</span> <span style=color:#f1fa8c>&#39;&lt;&#39;</span><span style=color:#ff79c6>:</span>
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>if</span> (<span style=color:#50fa7b>gettoken</span>(<span style=color:#bd93f9>0</span>, <span style=color:#ff79c6>&amp;</span>t) <span style=color:#ff79c6>!=</span> <span style=color:#f1fa8c>&#39;w&#39;</span>) {
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>debugf</span>(<span style=color:#f1fa8c>&#34;syntax error: &lt; not followed by word</span><span style=color:#f1fa8c>\n</span><span style=color:#f1fa8c>&#34;</span>);
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>exit</span>();
+</span></span><span style=display:flex><span>			}
+</span></span><span style=display:flex><span>			<span style=color:#6272a4>// Open &#39;t&#39; for reading, dup it onto fd 0, and then close the original fd.
+</span></span></span><span style=display:flex><span>			<span style=color:#6272a4>// If the &#39;open&#39; function encounters an error,
+</span></span></span><span style=display:flex><span>			<span style=color:#6272a4>// utilize &#39;debugf&#39; to print relevant messages,
+</span></span></span><span style=display:flex><span>			<span style=color:#6272a4>// and subsequently terminate the process using &#39;exit&#39;.
+</span></span></span><span style=display:flex><span>			<span style=color:#6272a4>/* Exercise 6.5: Your code here. (1/3) */</span>
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>if</span> ((fd <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>open</span>(t, O_RDONLY)) <span style=color:#ff79c6>&lt;</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>debugf</span>(<span style=color:#f1fa8c>&#34;failed to open %s</span><span style=color:#f1fa8c>\n</span><span style=color:#f1fa8c>&#34;</span>);
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>exit</span>();
+</span></span><span style=display:flex><span>			}
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>if</span> ((r <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>dup</span>(fd, <span style=color:#bd93f9>0</span>)) <span style=color:#ff79c6>&lt;</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>debugf</span>(<span style=color:#f1fa8c>&#34;failed to duplicate file to &lt;stdin&gt;</span><span style=color:#f1fa8c>\n</span><span style=color:#f1fa8c>&#34;</span>);
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>exit</span>();
+</span></span><span style=display:flex><span>			}
+</span></span><span style=display:flex><span>			<span style=color:#50fa7b>close</span>(fd);
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>break</span>;
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>case</span> <span style=color:#f1fa8c>&#39;&gt;&#39;</span><span style=color:#ff79c6>:</span>
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>if</span> (<span style=color:#50fa7b>gettoken</span>(<span style=color:#bd93f9>0</span>, <span style=color:#ff79c6>&amp;</span>t) <span style=color:#ff79c6>!=</span> <span style=color:#f1fa8c>&#39;w&#39;</span>) {
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>debugf</span>(<span style=color:#f1fa8c>&#34;syntax error: &gt; not followed by word</span><span style=color:#f1fa8c>\n</span><span style=color:#f1fa8c>&#34;</span>);
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>exit</span>();
+</span></span><span style=display:flex><span>			}
+</span></span><span style=display:flex><span>			<span style=color:#6272a4>// Open &#39;t&#39; for writing, create it if not exist and trunc it if exist, dup
+</span></span></span><span style=display:flex><span>			<span style=color:#6272a4>// it onto fd 1, and then close the original fd.
+</span></span></span><span style=display:flex><span>			<span style=color:#6272a4>// If the &#39;open&#39; function encounters an error,
+</span></span></span><span style=display:flex><span>			<span style=color:#6272a4>// utilize &#39;debugf&#39; to print relevant messages,
+</span></span></span><span style=display:flex><span>			<span style=color:#6272a4>// and subsequently terminate the process using &#39;exit&#39;.
+</span></span></span><span style=display:flex><span>			<span style=color:#6272a4>/* Exercise 6.5: Your code here. (2/3) */</span>
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>if</span> ((fd <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>open</span>(t, O_WRONLY)) <span style=color:#ff79c6>&lt;</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>debugf</span>(<span style=color:#f1fa8c>&#34;failed to open %s</span><span style=color:#f1fa8c>\n</span><span style=color:#f1fa8c>&#34;</span>);
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>exit</span>();
+</span></span><span style=display:flex><span>			}
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>if</span> ((r <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>dup</span>(fd, <span style=color:#bd93f9>1</span>)) <span style=color:#ff79c6>&lt;</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>debugf</span>(<span style=color:#f1fa8c>&#34;failed to duplicate file to &lt;stdout&gt;</span><span style=color:#f1fa8c>\n</span><span style=color:#f1fa8c>&#34;</span>);
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>exit</span>();
+</span></span><span style=display:flex><span>			}
+</span></span><span style=display:flex><span>			<span style=color:#50fa7b>close</span>(fd);
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>break</span>;
+</span></span><span style=display:flex><span>		<span style=color:#ff79c6>case</span> <span style=color:#f1fa8c>&#39;|&#39;</span><span style=color:#ff79c6>:</span>;
+</span></span><span style=display:flex><span>			<span style=color:#6272a4>/*
+</span></span></span><span style=display:flex><span><span style=color:#6272a4>			 * First, allocate a pipe.
+</span></span></span><span style=display:flex><span><span style=color:#6272a4>			 * Then fork, set &#39;*rightpipe&#39; to the returned child envid or zero.
+</span></span></span><span style=display:flex><span><span style=color:#6272a4>			 * The child runs the right side of the pipe:
+</span></span></span><span style=display:flex><span><span style=color:#6272a4>			 * - dup the read end of the pipe onto 0
+</span></span></span><span style=display:flex><span><span style=color:#6272a4>			 * - close the read end of the pipe
+</span></span></span><span style=display:flex><span><span style=color:#6272a4>			 * - close the write end of the pipe
+</span></span></span><span style=display:flex><span><span style=color:#6272a4>			 * - and &#39;return parsecmd(argv, rightpipe)&#39; again, to parse the rest of the
+</span></span></span><span style=display:flex><span><span style=color:#6272a4>			 *   command line.
+</span></span></span><span style=display:flex><span><span style=color:#6272a4>			 * The parent runs the left side of the pipe:
+</span></span></span><span style=display:flex><span><span style=color:#6272a4>			 * - dup the write end of the pipe onto 1
+</span></span></span><span style=display:flex><span><span style=color:#6272a4>			 * - close the write end of the pipe
+</span></span></span><span style=display:flex><span><span style=color:#6272a4>			 * - close the read end of the pipe
+</span></span></span><span style=display:flex><span><span style=color:#6272a4>			 * - and &#39;return argc&#39;, to execute the left of the pipeline.
+</span></span></span><span style=display:flex><span><span style=color:#6272a4>			 */</span>
+</span></span><span style=display:flex><span>			<span style=color:#8be9fd>int</span> p[<span style=color:#bd93f9>2</span>];
+</span></span><span style=display:flex><span>			<span style=color:#6272a4>/* Exercise 6.5: Your code here. (3/3) */</span>
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>if</span> ((r <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>pipe</span>(p)) <span style=color:#ff79c6>&lt;</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>debugf</span>(<span style=color:#f1fa8c>&#34;failed to create pipe</span><span style=color:#f1fa8c>\n</span><span style=color:#f1fa8c>&#34;</span>);
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>exit</span>();
+</span></span><span style=display:flex><span>			}
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>if</span> ((<span style=color:#ff79c6>*</span>rightpipe <span style=color:#ff79c6>=</span> <span style=color:#50fa7b>fork</span>()) <span style=color:#ff79c6>==</span> <span style=color:#bd93f9>0</span>) {
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>dup</span>(p[<span style=color:#bd93f9>0</span>], <span style=color:#bd93f9>0</span>);
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>close</span>(p[<span style=color:#bd93f9>0</span>]);
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>close</span>(p[<span style=color:#bd93f9>1</span>]);
+</span></span><span style=display:flex><span>				<span style=color:#ff79c6>return</span> <span style=color:#50fa7b>parsecmd</span>(argv, rightpipe);
+</span></span><span style=display:flex><span>			} <span style=color:#ff79c6>else</span> {
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>dup</span>(p[<span style=color:#bd93f9>1</span>], <span style=color:#bd93f9>1</span>);
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>close</span>(p[<span style=color:#bd93f9>1</span>]);
+</span></span><span style=display:flex><span>				<span style=color:#50fa7b>close</span>(p[<span style=color:#bd93f9>0</span>]);
+</span></span><span style=display:flex><span>				<span style=color:#ff79c6>return</span> argc;
+</span></span><span style=display:flex><span>			}
+</span></span><span style=display:flex><span>			<span style=color:#ff79c6>break</span>;
+</span></span><span style=display:flex><span>		}
+</span></span><span style=display:flex><span>	}
+</span></span><span style=display:flex><span>
+</span></span><span style=display:flex><span>	<span style=color:#ff79c6>return</span> argc;
+</span></span><span style=display:flex><span>}
+</span></span></code></pre></td></tr></table></div></div></div><footer class=post-footer><ul class=post-tags><li><a href=https://coder0xe.github.io/tags/june/>June</a></li></ul><nav class=paginav><a class=prev href=https://coder0xe.github.io/posts/os-lab6%E5%AE%9E%E9%AA%8C%E6%8A%A5%E5%91%8A/><span class=title>« Prev</span><br><span>OS:lab6实验报告</span>
+</a><a class=next href=https://coder0xe.github.io/posts/os%E7%90%86%E8%AE%BA%E6%9C%9F%E6%9C%AB%E5%A4%8D%E4%B9%A0/><span class=title>Next »</span><br><span>OS理论期末复习</span></a></nav><ul class=share-buttons><li><a target=_blank rel="noopener noreferrer" aria-label="share OS:lab6课下基础 on x" href="https://x.com/intent/tweet/?text=OS%3alab6%e8%af%be%e4%b8%8b%e5%9f%ba%e7%a1%80&amp;url=https%3a%2f%2fcoder0xe.github.io%2fposts%2fos-lab6%25E8%25AF%25BE%25E4%25B8%258B%25E5%259F%25BA%25E7%25A1%2580%2f&amp;hashtags=June"><svg viewBox="0 0 512 512" height="30" width="30" fill="currentColor"><path d="M512 62.554V449.446C512 483.97 483.97 512 449.446 512H62.554C28.03 512 0 483.97.0 449.446V62.554C0 28.03 28.029.0 62.554.0H449.446C483.971.0 512 28.03 512 62.554zM269.951 190.75 182.567 75.216H56L207.216 272.95 63.9 436.783h61.366L235.9 310.383l96.667 126.4H456L298.367 228.367l134-153.151H371.033zM127.633 110h36.468l219.38 290.065H349.5z"/></svg></a></li><li><a target=_blank rel="noopener noreferrer" aria-label="share OS:lab6课下基础 on linkedin" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https%3a%2f%2fcoder0xe.github.io%2fposts%2fos-lab6%25E8%25AF%25BE%25E4%25B8%258B%25E5%259F%25BA%25E7%25A1%2580%2f&amp;title=OS%3alab6%e8%af%be%e4%b8%8b%e5%9f%ba%e7%a1%80&amp;summary=OS%3alab6%e8%af%be%e4%b8%8b%e5%9f%ba%e7%a1%80&amp;source=https%3a%2f%2fcoder0xe.github.io%2fposts%2fos-lab6%25E8%25AF%25BE%25E4%25B8%258B%25E5%259F%25BA%25E7%25A1%2580%2f"><svg viewBox="0 0 512 512" height="30" width="30" fill="currentColor"><path d="M449.446.0C483.971.0 512 28.03 512 62.554v386.892C512 483.97 483.97 512 449.446 512H62.554c-34.524.0-62.554-28.03-62.554-62.554V62.554c0-34.524 28.029-62.554 62.554-62.554h386.892zM160.461 423.278V197.561h-75.04v225.717h75.04zm270.539.0V293.839c0-69.333-37.018-101.586-86.381-101.586-39.804.0-57.634 21.891-67.617 37.266v-31.958h-75.021c.995 21.181.0 225.717.0 225.717h75.02V297.222c0-6.748.486-13.492 2.474-18.315 5.414-13.475 17.767-27.434 38.494-27.434 27.135.0 38.007 20.707 38.007 51.037v120.768H431zM123.448 88.722C97.774 88.722 81 105.601 81 127.724c0 21.658 16.264 39.002 41.455 39.002h.484c26.165.0 42.452-17.344 42.452-39.002-.485-22.092-16.241-38.954-41.943-39.002z"/></svg></a></li><li><a target=_blank rel="noopener noreferrer" aria-label="share OS:lab6课下基础 on reddit" href="https://reddit.com/submit?url=https%3a%2f%2fcoder0xe.github.io%2fposts%2fos-lab6%25E8%25AF%25BE%25E4%25B8%258B%25E5%259F%25BA%25E7%25A1%2580%2f&title=OS%3alab6%e8%af%be%e4%b8%8b%e5%9f%ba%e7%a1%80"><svg viewBox="0 0 512 512" height="30" width="30" fill="currentColor"><path d="M449.446.0C483.971.0 512 28.03 512 62.554v386.892C512 483.97 483.97 512 449.446 512H62.554c-34.524.0-62.554-28.03-62.554-62.554V62.554c0-34.524 28.029-62.554 62.554-62.554h386.892zM446 265.638c0-22.964-18.616-41.58-41.58-41.58-11.211.0-21.361 4.457-28.841 11.666-28.424-20.508-67.586-33.757-111.204-35.278l18.941-89.121 61.884 13.157c.756 15.734 13.642 28.29 29.56 28.29 16.407.0 29.706-13.299 29.706-29.701.0-16.403-13.299-29.702-29.706-29.702-11.666.0-21.657 6.792-26.515 16.578l-69.105-14.69c-1.922-.418-3.939-.042-5.585 1.036-1.658 1.073-2.811 2.761-3.224 4.686l-21.152 99.438c-44.258 1.228-84.046 14.494-112.837 35.232-7.468-7.164-17.589-11.591-28.757-11.591-22.965.0-41.585 18.616-41.585 41.58.0 16.896 10.095 31.41 24.568 37.918-.639 4.135-.99 8.328-.99 12.576.0 63.977 74.469 115.836 166.33 115.836s166.334-51.859 166.334-115.836c0-4.218-.347-8.387-.977-12.493 14.564-6.47 24.735-21.034 24.735-38.001zM326.526 373.831c-20.27 20.241-59.115 21.816-70.534 21.816-11.428.0-50.277-1.575-70.522-21.82-3.007-3.008-3.007-7.882.0-10.889 3.003-2.999 7.882-3.003 10.885.0 12.777 12.781 40.11 17.317 59.637 17.317 19.522.0 46.86-4.536 59.657-17.321 3.016-2.999 7.886-2.995 10.885.008 3.008 3.011 3.003 7.882-.008 10.889zm-5.23-48.781c-16.373.0-29.701-13.324-29.701-29.698.0-16.381 13.328-29.714 29.701-29.714 16.378.0 29.706 13.333 29.706 29.714.0 16.374-13.328 29.698-29.706 29.698zM160.91 295.348c0-16.381 13.328-29.71 29.714-29.71 16.369.0 29.689 13.329 29.689 29.71.0 16.373-13.32 29.693-29.689 29.693-16.386.0-29.714-13.32-29.714-29.693z"/></svg></a></li><li><a target=_blank rel="noopener noreferrer" aria-label="share OS:lab6课下基础 on facebook" href="https://facebook.com/sharer/sharer.php?u=https%3a%2f%2fcoder0xe.github.io%2fposts%2fos-lab6%25E8%25AF%25BE%25E4%25B8%258B%25E5%259F%25BA%25E7%25A1%2580%2f"><svg viewBox="0 0 512 512" height="30" width="30" fill="currentColor"><path d="M449.446.0C483.971.0 512 28.03 512 62.554v386.892C512 483.97 483.97 512 449.446 512H342.978V319.085h66.6l12.672-82.621h-79.272v-53.617c0-22.603 11.073-44.636 46.58-44.636H425.6v-70.34s-32.71-5.582-63.982-5.582c-65.288.0-107.96 39.569-107.96 111.204v62.971h-72.573v82.621h72.573V512h-191.104c-34.524.0-62.554-28.03-62.554-62.554V62.554c0-34.524 28.029-62.554 62.554-62.554h386.892z"/></svg></a></li><li><a target=_blank rel="noopener noreferrer" aria-label="share OS:lab6课下基础 on whatsapp" href="https://api.whatsapp.com/send?text=OS%3alab6%e8%af%be%e4%b8%8b%e5%9f%ba%e7%a1%80%20-%20https%3a%2f%2fcoder0xe.github.io%2fposts%2fos-lab6%25E8%25AF%25BE%25E4%25B8%258B%25E5%259F%25BA%25E7%25A1%2580%2f"><svg viewBox="0 0 512 512" height="30" width="30" fill="currentColor"><path d="M449.446.0C483.971.0 512 28.03 512 62.554v386.892C512 483.97 483.97 512 449.446 512H62.554c-34.524.0-62.554-28.03-62.554-62.554V62.554c0-34.524 28.029-62.554 62.554-62.554h386.892zm-58.673 127.703c-33.842-33.881-78.847-52.548-126.798-52.568-98.799.0-179.21 80.405-179.249 179.234-.013 31.593 8.241 62.428 23.927 89.612l-25.429 92.884 95.021-24.925c26.181 14.28 55.659 21.807 85.658 21.816h.074c98.789.0 179.206-80.413 179.247-179.243.018-47.895-18.61-92.93-52.451-126.81zM263.976 403.485h-.06c-26.734-.01-52.954-7.193-75.828-20.767l-5.441-3.229-56.386 14.792 15.05-54.977-3.542-5.637c-14.913-23.72-22.791-51.136-22.779-79.287.033-82.142 66.867-148.971 149.046-148.971 39.793.014 77.199 15.531 105.329 43.692 28.128 28.16 43.609 65.592 43.594 105.4-.034 82.149-66.866 148.983-148.983 148.984zm81.721-111.581c-4.479-2.242-26.499-13.075-30.604-14.571-4.105-1.495-7.091-2.241-10.077 2.241-2.986 4.483-11.569 14.572-14.182 17.562-2.612 2.988-5.225 3.364-9.703 1.12-4.479-2.241-18.91-6.97-36.017-22.23C231.8 264.15 222.81 249.484 220.198 245s-.279-6.908 1.963-9.14c2.016-2.007 4.48-5.232 6.719-7.847 2.24-2.615 2.986-4.484 4.479-7.472 1.493-2.99.747-5.604-.374-7.846-1.119-2.241-10.077-24.288-13.809-33.256-3.635-8.733-7.327-7.55-10.077-7.688-2.609-.13-5.598-.158-8.583-.158-2.986.0-7.839 1.121-11.944 5.604-4.105 4.484-15.675 15.32-15.675 37.364.0 22.046 16.048 43.342 18.287 46.332 2.24 2.99 31.582 48.227 76.511 67.627 10.685 4.615 19.028 7.371 25.533 9.434 10.728 3.41 20.492 2.929 28.209 1.775 8.605-1.285 26.499-10.833 30.231-21.295 3.732-10.464 3.732-19.431 2.612-21.298-1.119-1.869-4.105-2.99-8.583-5.232z"/></svg></a></li><li><a target=_blank rel="noopener noreferrer" aria-label="share OS:lab6课下基础 on telegram" href="https://telegram.me/share/url?text=OS%3alab6%e8%af%be%e4%b8%8b%e5%9f%ba%e7%a1%80&amp;url=https%3a%2f%2fcoder0xe.github.io%2fposts%2fos-lab6%25E8%25AF%25BE%25E4%25B8%258B%25E5%259F%25BA%25E7%25A1%2580%2f"><svg viewBox="2 2 28 28" height="30" width="30" fill="currentColor"><path d="M26.49 29.86H5.5a3.37 3.37.0 01-2.47-1 3.35 3.35.0 01-1-2.47V5.48A3.36 3.36.0 013 3 3.37 3.37.0 015.5 2h21A3.38 3.38.0 0129 3a3.36 3.36.0 011 2.46V26.37a3.35 3.35.0 01-1 2.47 3.38 3.38.0 01-2.51 1.02zm-5.38-6.71a.79.79.0 00.85-.66L24.73 9.24a.55.55.0 00-.18-.46.62.62.0 00-.41-.17q-.08.0-16.53 6.11a.59.59.0 00-.41.59.57.57.0 00.43.52l4 1.24 1.61 4.83a.62.62.0 00.63.43.56.56.0 00.4-.17L16.54 20l4.09 3A.9.9.0 0021.11 23.15zM13.8 20.71l-1.21-4q8.72-5.55 8.78-5.55c.15.0.23.0.23.16a.18.18.0 010 .06s-2.51 2.3-7.52 6.8z"/></svg></a></li><li><a target=_blank rel="noopener noreferrer" aria-label="share OS:lab6课下基础 on ycombinator" href="https://news.ycombinator.com/submitlink?t=OS%3alab6%e8%af%be%e4%b8%8b%e5%9f%ba%e7%a1%80&u=https%3a%2f%2fcoder0xe.github.io%2fposts%2fos-lab6%25E8%25AF%25BE%25E4%25B8%258B%25E5%259F%25BA%25E7%25A1%2580%2f"><svg width="30" height="30" viewBox="0 0 512 512" fill="currentColor"><path d="M449.446.0C483.971.0 512 28.03 512 62.554V449.446C512 483.97 483.97 512 449.446 512H62.554C28.03 512 0 483.97.0 449.446V62.554C0 28.03 28.029.0 62.554.0H449.446zM183.8767 87.9921h-62.034L230.6673 292.4508V424.0079h50.6655V292.4508L390.1575 87.9921H328.1233L256 238.2489z"/></svg></a></li></ul></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://coder0xe.github.io/>coder0xe's blog</a></span> ·
+<span>Powered by
+<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
+<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
+</a><script>let menu=document.getElementById("menu");if(menu){const e=localStorage.getItem("menu-scroll-position");e&&(menu.scrollLeft=parseInt(e,10)),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}}document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{const e=document.querySelector("html");e.dataset.theme==="dark"?(e.dataset.theme="light",localStorage.setItem("pref-theme","light")):(e.dataset.theme="dark",localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>

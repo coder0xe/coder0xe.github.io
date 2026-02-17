@@ -1,0 +1,1182 @@
+<!doctype html><html lang=en dir=auto data-theme=auto><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no"><meta name=robots content="index, follow"><title>P5-pipeline-CPU-Design-Document | coder0xe's blog</title><meta name=keywords content="计组"><meta name=description content="初次编写流水线CPU，并将在P6-P8中进行增量开发"><meta name=author content="sudo"><link rel=canonical href=https://coder0xe.github.io/posts/p5-pipeline-cpu-design-document/><link crossorigin=anonymous href=/assets/css/stylesheet.e4a36188e2c44563c1cc5ed1a2d0b8451a4f68c685114d738b97609f82dae050.css integrity="sha256-5KNhiOLERWPBzF7RotC4RRpPaMaFEU1zi5dgn4La4FA=" rel="preload stylesheet" as=style><link rel=icon href=https://coder0xe.github.io/favicon.ico><link rel=icon type=image/png sizes=16x16 href=https://coder0xe.github.io/favicon-16x16.png><link rel=icon type=image/png sizes=32x32 href=https://coder0xe.github.io/favicon-32x32.png><link rel=apple-touch-icon href=https://coder0xe.github.io/apple-touch-icon.png><link rel=mask-icon href=https://coder0xe.github.io/safari-pinned-tab.svg><meta name=theme-color content="#2e2e33"><meta name=msapplication-TileColor content="#2e2e33"><link rel=alternate hreflang=en href=https://coder0xe.github.io/posts/p5-pipeline-cpu-design-document/><noscript><style>#theme-toggle,.top-link{display:none}</style><style>@media(prefers-color-scheme:dark){:root{--theme:rgb(29, 30, 32);--entry:rgb(46, 46, 51);--primary:rgb(218, 218, 219);--secondary:rgb(155, 156, 157);--tertiary:rgb(65, 66, 68);--content:rgb(196, 196, 197);--code-block-bg:rgb(46, 46, 51);--code-bg:rgb(55, 56, 62);--border:rgb(51, 51, 51);color-scheme:dark}.list{background:var(--theme)}.toc{background:var(--entry)}}@media(prefers-color-scheme:light){.list::-webkit-scrollbar-thumb{border-color:var(--code-bg)}}</style></noscript><script>localStorage.getItem("pref-theme")==="dark"?document.querySelector("html").dataset.theme="dark":localStorage.getItem("pref-theme")==="light"?document.querySelector("html").dataset.theme="light":window.matchMedia("(prefers-color-scheme: dark)").matches?document.querySelector("html").dataset.theme="dark":document.querySelector("html").dataset.theme="light"</script><meta property="og:url" content="https://coder0xe.github.io/posts/p5-pipeline-cpu-design-document/"><meta property="og:site_name" content="coder0xe's blog"><meta property="og:title" content="P5-pipeline-CPU-Design-Document"><meta property="og:description" content="初次编写流水线CPU，并将在P6-P8中进行增量开发"><meta property="og:locale" content="zh-CN"><meta property="og:type" content="article"><meta property="article:section" content="posts"><meta property="article:published_time" content="2023-11-12T18:12:07+08:00"><meta property="article:modified_time" content="2023-11-12T18:12:07+08:00"><meta property="article:tag" content="Nov"><meta name=twitter:card content="summary"><meta name=twitter:title content="P5-pipeline-CPU-Design-Document"><meta name=twitter:description content="初次编写流水线CPU，并将在P6-P8中进行增量开发"><script type=application/ld+json>{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Posts","item":"https://coder0xe.github.io/posts/"},{"@type":"ListItem","position":2,"name":"P5-pipeline-CPU-Design-Document","item":"https://coder0xe.github.io/posts/p5-pipeline-cpu-design-document/"}]}</script><script type=application/ld+json>{"@context":"https://schema.org","@type":"BlogPosting","headline":"P5-pipeline-CPU-Design-Document","name":"P5-pipeline-CPU-Design-Document","description":"初次编写流水线CPU，并将在P6-P8中进行增量开发","keywords":["计组"],"articleBody":"P5-pipeline-CPU-Design-Document 零.数据通路描述 ​\tMIPS架构的五级流水线CPU数据通路有以下五个阶段：\n取指阶段F(Fetch):从指令存储器中读取指令\n译码阶段D(Decode):从寄存器文件中读取源操作数并对指令译码得到控制信号\n执行阶段E(Execute):使用ALU执行计算\n存储阶段M(Memory):读或写数据存储\n写回阶段(Writeback):将结果写回到寄存器文件\n​\t通过在五个阶段之间加入寄存器来保存前面周期产生的数据(最后一个阶段的寄存器即为GRF),形成五级流水线CPU，数据通路如下图表示：\n一.数据命名规范(checkstyle) 在控制信号连线名末尾加上“_阶段字母”，如NPCOp_D,用于区分所属的阶段 在流水线寄存器输出信号前加上“阶段字母_\"，如：D_A1,用以区分所属阶段 功能部件输出信号前加上功能部件名称 常规MUX命名采用\"MUX-部件名-端口名”的命名方式，选择信号命名为\"Sel+部件名+端口名\" 转发MUX命名采用\"HMUX-部件名-端口名\"的命名方式，选择信号命名为\"Fwd+部件名+端口名\" 二.部件设计 1.MCU(main control unit) 1.端口定义列表 ​\t主控制单元模块负责对指令进行译码以及产生控制信号，本CPU的设计采用集中式译码，在P5中需要完成的指令及其需要的控制信号列表如下，其中有些控制信号对应多路选择器的选择。\n名称 方向 位宽 描述 D_opcode I 6 D级输出opcode D_funct I 6 D级输出funct SelA3_D I 2 选择当前指令要写入的寄存器，写入E级流水线寄存器 RegWrite_D O 1 GRF写入使能 MemWrite_D O 1 DM写入使能 EXTOp_D O 1 对立即数进行符号扩展还是0扩展 SelEMout_D O 1 选择E，M级转发数据信号 SelWout_D O 2 选择W级转发数据信号 SelALUB_D O 1 ALU的B端口rt数据与32位立即数的选择 CMPOp_D O 3 D级B类指令比较选择 NPCOp_D O 3 写入NPC选择 ALUOp_D O 3 ALU操作信号 DMOp_D O 3 DM操作信号 T_rs_use_D O 2 指令处在D级时还有多少个周期需要使用rs寄存器的值 T_rt_use_D O 2 指令处在D级时还有多少个周期需要使用rt寄存器的值 T_new_D O 2 指令处在D级时还有多少个周期可以产生写入寄存器的新值 2.分指令梳理控制信号 指令 取高电平的控制信号和ALUOp add SelA3_D = 2’b01, RegWrite, ALUOp = 3’b000, NPCOp = 3’b000; sub SelA3_D = 2’b01, RegWrite, ALUOp = 3’b001, NPCOp = 3’b000; ori RegWrite,ALUSrc, SelALUB, ALUOp=3’b010, NPCOp = 3’b000; lui RegWrite,ALUSrc, SelALUB, ALUOp=3’b011, NPCOp = 3’b000; lw RegWrite, SelWout = 2’b01, SelALUB, EXTOp, ALUOp=3’b000, NPCOp = 3’b000; sw MemWrite, SelALUB, EXTOp, ALUOp=3’b000, NPCOp = 3’b000; beq CMPOp = 3’b000,EXTOp, NPCOp = 3’b001, CMPOp = 3’b000; jal RegWrite, SelA3_D = 2’b10, NPCOp = 3’b010; jr NPCOp = 3’b11; nop 相当于sll $0,$0,0，不需要进行特殊处理 3.译码方式的改动 ​\t在P4中，我才用使用reg类型变量记录指令识别的形式，在always块中每次都为代表所有信号的寄存器赋初值0，这样会导致pc一直自增下去，程序不断向后跑(虽然在上机时无影响)，在蒋老师的测评机上会出现多输出的情况。在P5中，使用wire类型进行指令的识别，当识别的指令为x时，所有指令对应的wire都是不定值x，导致MCU中输出的控制信号为x，使得pc停下来，可以正常在蒋老师的测评机上跑结果。\n1 wire op_add = (D_opcode == R \u0026\u0026 D_funct == add); 2.HCU(hazard control unit) 1.数据冒险中的供给需求模型 1.供给者与需求者分析 需求者： 引用某个reg值的component 供给者：保存有reg新结果的流水线寄存器 ​\t我们假设指令前进到必须使用某一寄存器的值的流水阶段时，这个寄存器的值一定已经产生，并存储于后续某个流水线寄存器中，不管需要的值有没有计算出，都要进行转发，即暴力转发。\n供给者及其产生的数据 流水级 产生数据 MUX\u0026选择信号 MUX输出名 E E_E32,E_pc8 MUX_E_out\u0026SelEMOut E_out M M_AO,M_pc8 MUX_M_out\u0026SelEMout M_out W W_AO,W_RD,W_pc8 MUX_W_out\u0026SelWOut W_out 需求者及其产生的数据 ​\t注：表格中选择数据表示是哪一个流水段产生的结果，实际数据来自流水段寄存器的转发而不是流水段中的部件\n接收端口 选择数据 HMUX\u0026选择信号 MUX输出名 CMP_D1 D_V1,E_out,M_out HMUX_CMP_D1\u0026FwdCPMD1 D_V1_f(orward) CMP_D2 D_V2,E_out,M_out HMUX_CMP_D2\u0026FwdCPMD2 D_V2_f ALU_A D_V1,E_out,M_out HMUX_ALU_A\u0026FwdALUA E_V1_f ALU_B D_V2,E_out,M_out HMUX_ALU_B\u0026FwdALUB E_V2_f DM_WD M_V2,W_out HMUX_DM\u0026FwdDM M_V1_f NPC_ra D_V1,E_out,M_out HMUX_CMP_D1\u0026FwdCPMD1 D_V1_f ​\t注：对于jr跳转指令，跳转到rs寄存器的值，故可以与CMP_D1共用同一个转发多路选择器产生的结果，但是我选择单独实现\n2.Tuse /Tnew 数据冒险可以转化为需求与供给的匹配问题：\nTuse：数据到了D级后还需要多少个周期要使用寄存器的值\nTnew: 位于E级及其后各流水线的指令，再经过多少个时钟周期能够产生要写入寄存器的结果。\nTuse \u003c Tnew : 暂停install\nTuse \u003e=Tnew: 转发forward，注意：我们进行转发从来都是从流水线寄存器进行转发而不是从部件产生结果进行转发，故从部件产生结果到存储到流水线寄存器可以进行转发还需要一个时钟周期\nTuse固定不变，可以从MCU译码后直接传入HCU\n采取的集中式译码中，Tnew随流水递减，在每一级流水段中传给HCU\nTnew-E = max (Tnew-D - 1 , 0) Tnew-M = max (Tnew-E - 1 , 0) 在当前指令集下 Tnew-W = 0 2.冒险分析 1.对指令构建Tuse-Tnew表 add/sub/ori/lui : 在D阶段译码之后在E级ALU使用寄存器rs和(rt)的值，还需一个时钟周期存入E级流水线寄存器 lw : 只用到rs寄存器中的值用来计算取数地址，经过两个周期在DM处取出结果存入W级寄存器 sw : 只涉及到存入DM，不产生新的数据 beq : 在D级进行操作数相等比较 jal : 将PC+8存入ra寄存器 jr : 在D级使用rs寄存器中的值作为跳转pc 注意：！！！对于不需要使用到该寄存器的指令，T_rs_use / T_rt_use需要置为3，最初我的错误是不进行处理，即T_rs_use = T_rt_use = 0，这样会导致很多不必要的暂停的发生，具体在测评中会表现为TLE！因为T_rs_use和T_rt_use的范围为0-2，将T_rs_use,T_rt_use标记为3可以规避掉所有的暂停情况！\n2.stall/forward控制列表 ​\t用当前指令用到的寄存器的对应的Tuse与该寄存器新值当前所在流水段对应部件的Tnew进行比对，如果\nTuse \u003e= Tnew，则通过转发解决 Tuse \u003c Tnew ，则只能进行暂停 从上表可以归结出需要进行暂停的四种情况\nE_Tnew = 2,Tuse=0 E_Tnew = 2,Tuse = 1 E_Tnew = 1,Tuse = 0 M_Tnew = 1,Tuse = 0 暂停：冻结PC计数器，冻结D级寄存器，清空E级寄存器\n3.基础指令的数据通路/各个流水段需要传递的信号 列表如下所示：\n4.HCU设计 1.端口定义列表 输入信号 方向 位宽 描述 D_A1 I 5 D级A1输入 D_A2 I 5 D级A2输入 E_A1 I 5 E级A1输入 E_A2 I 5 E级A2输入 E_A3 I 5 E级A3输入 M_A2 I 5 M级A2输入 M_A3 I 5 M级A3输入 W_A3 I 5 W级A3输入 RegWrite_E I 1 E级保存的GRF写入使能信号 RegWrite_M I 1 M级保存的GRF写入使能信号 RegWrite_W I 1 W级保存的GRF写入使能信号 T_rs_use I 2 D级中MCU输出的T_rs_use_D信号 T_rt_use I 2 D级中MCU输出的T_rt_use_D信号 T_new_E I 2 E级中T_new_E输入 T_new_M I 2 M级中T_new_M输入 T_new_W I 2 W级中T_new_W输入 输出信号 位宽 作用级 描述 FwdCMPD1 2 D 对HMUX_CMP_D1输出进行选择 FwdCMPD2 2 D 对HMUX_CMP_D2输出进行选择 FwdALUA 2 E 对HMUX_ALU_A输出进行选择 FwdALUB 2 E 对HMUX_ALU_B输出进行选择 FwdDM 1 M 对HMUX_DM的输出进行选择 stall 1 D,F,M 暂停信号 注：暂停机制：冻结PC,冻结D级，清空E级，即stall信号作用于IFU,D_REG,E_REG\n2.控制转发/暂停的内部逻辑 暂停的内部逻辑 ​\t经过前面的分析，可知暂停信号stall的产生一共有八种情况，rs,rt各四种，最后或在一起即可。记号stall_rs0_e1表示暂停中T_rs_use=0\u0026\u0026T_new_E = 1的情况，对应的表达式为:\n1 stall_rs0_e1 = (T_rs_use == 2'b00)\u0026\u0026(T_new_E = 2'b01)\u0026\u0026(D_A1 == E_A3)\u0026\u0026(D_A1 != 5'b0)\u0026\u0026(RegWrite_E) ​\t与逻辑表达式中前两项为对时间状态的判断，后三项为对寄存器状态的判断，即判断此时E级能写入且写入的寄存器为D级的rs且不是0寄存器。\n转发的内部逻辑 ​\t注：在流水段中，较先进入流水的指令在流水段较深的位置，我们进行转发只会对前序指令的运算结果进行转发，故会出现靠后流水段的转发选择信号较少，例如在M级对DM部件的转发 只会涉及到一个流水线寄存器输出的信号W_out，而在E级对ALU_A的转发信号有两个信号来自流水线寄存器，M_out,W_out.\n​\t转发逻辑涉及到优先级的判断，即对最新产生的结果进行转发，可以通过三目运算符实现，将优先级更高的结果(值更新的结果)放在三目运算符判断的前面并为选择信号编码，我采用的编码方式为优先级从低到高编码增加。判断能进行转发的关键条件为T_new=0\n例如：\n1 2 3 assign FwdCMPD1 = (T_new_E == 2'b00)\u0026\u0026(E_A3 == D_A1)\u0026\u0026(D_A1 != 5'b0)\u0026\u0026(RegWrite_E) ? 2'b10 : (T_new_M == 2'b00)\u0026\u0026(M_A3 == D_A1)\u0026\u0026(D_A1 != 5'b0)\u0026\u0026(RegWrite_M) ? 2'b01 : 2'b00; 3.ALU 1.端口定义列表 名称 方向 位宽 描述 src_A I 32 操作数1 src_B I 32 操作数2 ALUOp I 3 运算类型 AO O 32 运算结果 2.ALUOp编码与运算选择 ALU运算 ALUOp编码 + 0000 - 0001 | 0010 load to higher half(lui) 0011 « 0100 signed compare (slt) 0101 unsigned compare(sltu) 0110 ​\t将beq指令在ALU中判断两个操作数是否相等的操作移动到D级模块CMP中，使得跳转指令在D级就可以完成判断，流水线只会顺序多执行一条指令。\n4.EXT 端口定义列表 名称 方向 位宽 描述 imm I 16 D级16位立即数 EXTOp I 1 选择进行符号扩展/零扩展 imm_32 I 32 位扩展结果 5.GRF 1.端口定义列表 名称 方向 位宽 描述 clk I 1 时钟信号 reset I 1 同步复位信号 rs I 5 rs寄存器 rt I 5 rt寄存器 rd I 5 rd寄存器 pc I 32 指令执行地址 datawrite I 32 写入数据选择 RegWrite I 1 写入使能 dataread1 O 32 读rs寄存器 dataread2 O 32 读rt寄存器 注意：这里的RegWrite,datawirte,A3(rd),pc信号均来自W级\n2.GRF内部转发 ​\t设计GRF内部转发逻辑：GRF既是D级的一个部件又是W级之后的流水线寄存器。当W级写GRF，D级读GRF时，如果读取寄存器与写入寄存器为同一寄存器时不进行转发，新值虽然被写入GRF但流入E级的值依然为旧值。\n判断条件：当写入信号RegWrite有效且A1==A3或A2==A3时，将写入值作为对应输出值\n判断逻辑如下:\n1 2 //forward assign dataread1 = (RegWrite \u0026\u0026 rs == rd \u0026\u0026 rd != 0) ? datawrite : grf[rs]; 6.IFU 端口定义列表 名称 方向 位宽 描述 clk I 1 时钟信号 reset I 1 同步复位信号 en I 1 使能信号(~stall) npc I 32 下一指令地址 pc O 32 F级当前地址 pc8 O 32 输出PC+8，随流水段传递(jal考虑延迟槽) instr O 32 取出的指令 7.NPC 1.端口定义列表 名称 方向 位宽 描述 D_pc I 32 D级PC F_pc I 32 F级PC b_result I 1 D级CMP模块判断结果 b_offset I 32 B类指令的跳转地址 j_address I 26 J类指令跳转地址 reg_address I 32 跳转到寄存器中的地址(jr) NPCOp I 3 地址选择信号 npc O 32 程序下一条指令地址 2.NPCOp编码与地址选择 NPCOp编码 选择跳转地址 000 F_pc + 4 001(B) \u0026\u0026 b_result D_pc + 4 + (b_offset « 2’b10) 010(jal) {(D_pc + 4)[31:28],j_address,2’b00} 011(jr) reg_address 注：NPC是横跨D级和E级的模块，如果是beq或jal等指令，则需要在D_pc基础上进行操作，否则为F_pc+4\n8.CMP 1.端口定义列表 名称 方向 位宽 描述 D_V1 I 32 GRF中读出的rs寄存器的值 D_V2 I 32 GRF中读出的rt寄存器的值 CMPOp I 3 选择比较类型 b_result O 1 是否满足B类跳转指令的跳转条件 2.CMPOp编码与对应指令 当前只实现beq，该信号的设置更大的意义在于其可扩展性，便于课上添加指令\nCMPOp编码 对应指令 000 beq … … 9.DM 1.端口定义列表 名称 方向 位宽 描述 clk I 1 时钟信号 reset I 1 同步复位信号 MemWrite I 1 写入使能 address I 32 写入/读取数据的地址 pc I 32 当前指令地址 DMOp I 3 执行操作 2.DMOp编码与对应指令 ​\t该信号的设置更大的意义在于其可扩展性，便于课上添加指令\nDMOp编码 对应指令 000 sw 100 lw … … 10.MUX 1.功能多路选择器 1.MUX_A3 D级写入寄存器选择 端口定义列表 名称 方向 位宽 描述 D_instr_rs I 5 instr中rs段 D_instr_rt I 5 instr中rt段 SelA3_D I 2 rd选择信号 D_A3 O 5 写入寄存器A3 选择信号与结果 SelA3_D D_A3 2’b10 31 2’b01 rd 2’b00 rt 2.MUX_ALU_B ALUB端口选择 端口定义列表 名称 方向 位宽 描述 E_V2_f I 32 转发后的V2 E_E32 I 32 32位立即数 SelALUB_E I 1 选择信号 E_ALU_B O 32 输出到ALUB端口的结果 选择信号与结果 SelALUB_E E_ALU_B 1’b1 E_E32 1’b0 E_V2_f 3.MUX_E_out 选择E级转发数据 端口定义列表 名称 方向 位宽 描述 E_E32 I 32 32位立即数 E_pc8 I 32 流水PC8(jal) SelEMout_E I 1 选择信号 E_out O 32 E级转发数据 选择信号与结果 SelEMout_E E_out 1’b1 E_pc8 1’b0 E_E32 4.MUX_M_out 选择M级转发数据 端口定义列表 名称 方向 位宽 描述 M_AO I 32 M级ALU计算结果 M_pc8 I 32 流水PC8(jal) SelEMout_M I 1 选择信号 M_out O 32 M级转发数据 选择信号与结果 SelEMout_M M_out 1’b1 M_pc8 1’b0 M_AO 5.MUX_W_out 选择W级转发数据 端口定义列表 名称 方向 位宽 描述 W_AO I 32 W级ALU计算结果 W_DR I 32 W级DM中读取出的数据 W_pc8 I 32 W级流水PC8(jal) SelWout_W I 2 选择信号 W_out O 32 W级转发数据/GRF写入数据 选择信号与结果 SelWout_W W_out 2’b10 W_pc8 2’b01 W_DR 2’b00 W_AO 2.转发多路选择器 1.HMUX_CMP_D1 CMP模块rs寄存器值转发 端口定义列表 名称 方向 位宽 描述 GRF_RD1 I 32 GRF中读取出的rs值 M_out I 32 M级转发数据 E_out I 32 E级转发数据 FwdCMPD1 I 2 选择信号 D_V1_f O 32 转发后的rs寄存器值 ​\t注：转发寄存器中有数据优先级的问题，越新产生的数据优先级越高，考虑到GRF中内部转发的逻辑，事实上GRF_RD1也代表着潜在的W级转发数据，但是仍然不破坏优先级关系E\u003eM\u003eW\n选择信号与结果 FwdCMPD1 D_V1_f 2’b10 E_out 2’b01 M_out 2’b00 GRF_RD1 2.HMUX_CMP_D2 CMP模块rt寄存器值转发 端口定义列表 名称 方向 位宽 描述 GRF_RD2 I 32 GRF中读取出的rt值 M_out I 32 M级转发数据 E_out I 32 E级转发数据 FwdCMPD2 I 2 选择信号 D_V2_f O 32 转发后的rt寄存器值 选择信号与结果 FwdCMPD2 D_V1_f 2’b10 E_out 2’b01 M_out 2’b00 GRF_RD2 3.HMUX_ALU_A ALU模块V1值转发 端口定义列表 名称 方向 位宽 描述 E_V1 I 32 GRF中读取出的rs值 M_out I 32 M级转发数据 W_out I 32 W级转发数据 FwdALUA I 2 选择信号 E_V1_f O 32 转发后的V1值 选择信号与结果 FwdALUA E_V1_f 2’b10 M_out 2’b01 W_out 2’b00 E_V1 4.HMUX_ALU_B ALU模块V2值转发 端口定义列表 名称 方向 位宽 描述 E_V2 I 32 GRF中读取出的rt值 M_out I 32 M级转发数据 W_out I 32 W级转发数据 FwdALUB I 2 选择信号 E_V2_f O 32 转发后的V2值 选择信号与结果 FwdALUB E_V2_f 2’b10 M_out 2’b01 W_out 2’b00 E_V2 5.HMUX_DM DM写入数据转发 端口定义列表 名称 方向 位宽 描述 M_V2 I 32 M级V2 W_out I 32 W级转发数据 FwdDM I 1 选择信号 M_V1_f O 32 DM写入数据 选择信号与结果 FwdDM M_V1_f 1’b1 W_out 1’b0 M_V2 6.HMUX_NPC NPC模块跳转寄存器值转发 端口定义列表 名称 方向 位宽 描述 GRF_RD1 I 32 GRF中读取出的rs值 M_out I 32 M级转发数据 E_out I 32 E级转发数据 FwdCMPD1 I 2 选择信号 D_RA_f O 32 转发后的rs寄存器值 ​\t注：其实可以共用CMPD1的转发数据\n选择信号与结果 FwdCMPD1 D_RA_f 2’b10 E_out 2’b01 M_out 2’b00 GRF_RD1 11.流水线寄存器 1.D_REG 名称 方向 位宽 描述 clk I 1 时钟信号 reset I 1 同步复位信号 en I 1 ~stall（冻结D级） F_instr I 32 F级取指令 F_pc I 32 F级PC F_pc8 I 32 F级PC+8(jal) D_instr O 32 D级执行指令 D_pc O 32 D级PC D_pc8 O 32 D级PC+8 2.E_REG 名称 方向 位宽 描述 clk I 1 时钟信号 reset I 1 同步复位信号 clr I 1 stall(清空E级) D_V1 I 32 D级GRF中读取rs寄存器的值 D_V2 I 32 D级GRF中读取rt寄存器的值 D_A1 I 5 D级A1 D_A2 I 5 D级A2 D_A3 I 5 D级A3 D_E32 I 32 32位立即数 D_pc I 32 D级pc D_pc8 I 32 D级pc+8 T_new_D I 2 D级T_new RegWrite_D I 1 D级GRF写入使能 MemWrite_D I 1 D级DM写入使能 SelEMout_D I 1 E、M级转发数据选择信号 SelWout_D I 1 W级转发数据选择信号 SelALUB_D I 1 ALUB端口数据选择 ALUOp_D I 3 ALU操作选择 DMOp_D I 3 DM操作选择 E_V1 O 32 E_V2 O 32 E_A1 O 5 E_A2 O 5 E_A3 O 5 E_E32 O 32 E_pc O 32 E_pc8 O 32 T_new_E O 2 RegWrite_E O 1 MemWrite_E O 1 SelEMout_E O 1 SelWout_E O 2 SelALUB_E O 1 ALUOp_E O 3 DMOp_E O 3 3.M_REG 名称 方向 位宽 描述 clk I 1 reset I 1 E_AO I 32 E级ALU计算结果 E_V2 I 32 注意：E_V2不是D_V2,而是经过转发后的D_V2_f E_A2 I 5 E_A3 I 5 E_pc I 32 E_pc8 I 32 T_new_E I 2 RegWrite_E I 1 MemWrite_E I 1 SelEMout_E I 1 SelWout_E I 1 DMOp_E I 3 M_AO O 32 M_V2 O 5 M_A2 O 5 M_A3 O 5 M_pc O 32 M_pc8 O 32 T_new_M O 2 RegWrite_M O 1 MemWrite_M O 1 SelEMout_M O 1 SelWout_M O 2 DMOp_M O 3 4.W_REG 名称 方向 位宽 描述 clk I 1 reset I 1 M_AO I 32 M_DR I 32 M级DM中读出的数据 M_A3 M_pc I 32 M_pc8 I 32 SelWout_M I 2 T_new_M I 2 RegWrite_M I 1 W_AO O 32 W_DR O 32 W_A3 O 5 W_pc O 32 W_pc8 O 32 SelWout_W O 2 T_new_W O 2 RegWrite_W O 1 12.顶层连接 完整数据通路图QAQ\n流水级中的主要模块：\nF级 ：IFU D级 ：MCU,GRF,EXT,CMP,NPC(注意！一开始被教程中的图误导，放在了F级) E级 : ALU M级 ：DM 顶层 ：HCU 三. test //祖传强测代码 case0: ori $t0, $zero, 8 add $t1, $t0, $zero case1: ori $t0, $zero, 8 ori $t2, $zero, 12 add $t1, $t0, $zero case2: ori $t0, $zero, 8 ori $t2, $zero, 12 ori $t3, $zero, 13 add $t1, $t0, $zero case3: ori $t0, $zero, 8 add $t1, $zero, $t0 case4: ori $t0, $zero, 8 ori $t2, $zero, 12 add $t1, $zero, $t0 case5: ori $t0, $zero, 8 ori $t2, $zero, 12 ori $t3, $zero, 13 add $t1, $zero, $t0 case6: lui $t0, 8 add $t1, $t0, $zero case7: lui $t0, 8 lui $t2, 12 add $t1, $t0, $zero case8: lui $t0, 8 lui $t2, 12 lui $t3, 14 add $t1, $t0, $zero case9: lui $t0, 8 add $t1, $zero, $t0 case10: lui $t0, 8 lui $t2, 12 add $t1, $zero, $t0 case11: lui $t0, 8 lui $t2, 12 lui $t3, 14 add $t1, $zero, $t0 case12: lui $t0, 8 add $t1, $zero, $t0 add $t2, $t1, $zero case13: lui $t0, 8 add $t1, $zero, $t0 add $t3, $t0, $t0 add $t2, $t1, $zero case14: lui $t0, 8 add $t1, $zero, $t0 add $t3, $t0, $t0 add $t4, $t0, $t0 add $t2, $t1, $t1 case15: ori $t0, $zero, 8 ori $t1, $zero, 12 ori $t2, $zero, 16 ori $t3, $zero, 20 ori $t4, $zero, 24 ori $t5, $zero, 28 sw $t1, 0($t0) ori $s0, $zero, 4 ori $s1, $zero, 8 ori $s2, $zero, 12 lw $t6, 0($t0) add $t7, $t6, $t6 case16: ori $t0, $zero, 8 ori $t1, $zero, 12 ori $t2, $zero, 16 ori $t3, $zero, 20 ori $t4, $zero, 24 sw $t1, 0($t0) ori $s0, $zero, 4 ori $s1, $zero, 8 ori $s2, $zero, 12 lw $t6, 0($t0) ori $t5, $zero, 28 add $t7, $t6, $t6 case17: ori $t0, $zero, 8 ori $t1, $zero, 12 ori $t2, $zero, 16 ori $t3, $zero, 20 ori $t4, $zero, 24 sw $t1, 0($t0) ori $s0, $zero, 4 ori $s1, $zero, 8 ori $s2, $zero, 12 lw $t6, 0($t0) ori $t5, $zero, 28 ori $t8, $zero, 32 add $t7, $t6, $t6 case18: ori $t0, $zero, 8 ori $t1, $zero, 12 ori $t2, $zero, 16 jal change1 add $t3, $ra, $ra ori $t4, $zero, 20 ori $t5, $zero, 24 change1: ori $t6, $zero, 20 case19: ori $t0, $zero, 8 ori $t1, $zero, 12 ori $t2, $zero, 16 jal change2 ori $t4, $zero, 20 ori $t5, $zero, 24 change2: add $t3, $ra, $ra ori $t6, $zero, 20 ori $t7, $zero, 24 case20: ori $t0, $zero, 8 ori $t1, $zero, 12 ori $t2, $zero, 16 jal change3 ori $t4, $zero, 20 ori $t5, $zero, 24 change3: ori $t6, $zero, 20 add $t3, $ra, $ra ori $t6, $zero, 20 ori $t7, $zero, 24 case21:\tori $t0, $zero, 8 ori $t1, $t0, 12 case22: ori $t0, $zero, 8 ori $t2, $zero, 20 ori $t1, $t0, 12 case23: ori $t0, $zero, 8 ori $t2, $zero, 20 ori $t3, $zero, 24 ori $t1, $t0, 12 case24: ori $t0, $zero, 8 ori $t1, $zero, 20 ori $t2, $zero, 24 ori $t3, $zero, 12 ori $t4, $zero, 16 sub $t5, $t0, $t1 ori $t6, $t5, 13 case25: ori $t0, $zero, 8 ori $t1, $zero, 20 ori $t2, $zero, 24 ori $t3, $zero, 12 ori $t4, $zero, 16 sub $t5, $t0, $t1 ori $t7, $zero, 20 ori $t6, $t5, 13 case26: ori $t0, $zero, 8 ori $t1, $zero, 20 ori $t2, $zero, 24 ori $t3, $zero, 12 ori $t4, $zero, 16 sub $t5, $t0, $t1 ori $t7, $zero, 20 ori $t8, $zero, 24 ori $t6, $t5, 13 case27: ori $t0, $zero, 8 ori $t1, $zero, 20 ori $t2, $zero, 4 ori $t3, $zero, 12 ori $t4, $zero, 16 sw $t0, 0($t1) lw $t5, 0($t1) ori $t6, $t5, 13 case28: ori $t0, $zero, 8 ori $t1, $zero, 20 ori $t2, $zero, 4 ori $t3, $zero, 12 ori $t4, $zero, 16 sw $t0, 0($t1) lw $t5, 0($t1) ori $t7, $zero, 20 ori $t6, $t5, 13 case29: ori $t0, $zero, 8 ori $t1, $zero, 20 ori $t2, $zero, 4 ori $t3, $zero, 12 ori $t4, $zero, 16 sw $t0, 0($t1) lw $t5, 0($t1) ori $t7, $zero, 20 ori $t8, $zero, 24 ori $t6, $t5, 13 case30: ori $t0, $zero, 8 ori $t1, $zero, 20 jal change4 ori $t2, $ra, 8 ori $t3, $zero, 14 change4: ori $t4, $zero, 18 ori $t5, $zero, 22 ori $t6, $zero, 26 case31: ori $t0, $zero, 8 ori $t1, $zero, 20 jal change5 ori $t2, $zero, 4 ori $t3, $zero, 14 change5: ori $t4, $ra, 18 ori $t5, $zero, 22 ori $t6, $zero, 26 case32: ori $t0, $zero, 8 ori $t1, $zero, 20 jal change6 ori $t2, $zero, 4 ori $t3, $zero, 14 change6: ori $t7, $zero, 6 ori $t4, $ra, 18 ori $t5, $zero, 22 ori $t6, $zero, 26 case33: ori $t0, $zero, 4 ori $t1, $zero, 8 ori $t2, $zero, 9 ori $t3, $zero, 12 sw $t1, 0($t0) sw $t2, 4($t0) sw $t3, 8($t0) occasionl1:\t#R_E_RS sub $t4, $t1, $t0 lw $t5, 0($t4) occasionl2:\t#R_M_RS sub $t5, $t3, $t0 ori $zero, $zero, 5 lw $t6, 0($t5) occasionl3:\t#R_W_RS add $t6, $t0, $t1 ori $s0, $zero, 12 ori $s1, $zero, 16 lw $t7, 0($t6) case34: ori $t0, $zero, 4 ori $t1, $zero, 8 ori $t2, $zero, 9 ori $t3, $zero, 12 sw $t1, 0($t0) sw $t2, 4($t0) sw $t3, 8($t0) occasionl4:\t#R_E_RS ori $t4, $zero, 4 lw $t5, 0($t4) occasionl5:\t#R_M_RS ori $t5, $zero, 8 ori $zero, $zero, 5 lw $t6, 0($t5) occasionl6:\t#R_W_RS ori $t6, $zero, 12 ori $s0, $zero, 12 ori $s1, $zero, 16 lw $t7, 0($t6) case35: ori $t0, $zero, 4 ori $t1, $zero, 8 ori $t2, $zero, 12 ori $t3, $zero, 16 sw $t0, 0($zero) sw $t1, 0($t0) sw $t2, 0($t1) sw $t3, 4($t1) occasionl7:\t#ld_E_RS lw $t4, 0($t0) lw $t5, 0($t4) occasionl8:\t#ld_M_RS lw $t5, -4($t0) add $zero, $zero, $t1 lw $t6, 0($t5) occasionl9:\t#ld_W_RS lw $t6, 4($t0) ori $s0, $zero, 1 ori $s1, $zero, 2 lw $t7, 0($t6) case36: ori $t0, $zero, 4 ori $t1, $zero, 8 ori $t2, $zero, 12 ori $t3, $zero, 16 ori $t4, $zero, 20 occasions1:\t#R_E_RS add $t5, $t0, $t1 sw $t2, 0($t5) occasions2:\t#R_M_RS sub $t6, $t2, $t1 ori $s0, $zero, 12 sw $t3, 4($t6) occasions3:\t#R_W_RS sub $t7, $t4, $t0 ori $s1, $zero, 4 ori $s2, $zero, 8 sw $t4, 0($t7) occasions4:\t#R_E_RT sub $t5, $t1, $t0 sw $t5, 0($t0) occasions5:\t#R_M_RT sub $t5, $t2, $t0 ori $s0, $zero, 2 sw $t5, 4($t2) occasions6:\t#R_W_RT add $t6, $t3, $t4 ori $s0, $zero, 1 ori $s1, $zero, 2 sw $t6, 0($t1) case37: ori $t0, $zero, 4 ori $t1, $zero, 8 ori $t2, $zero, 12 ori $t3, $zero, 16 ori $t4, $zero, 20 occasions7:\t#I_E_RS ori $t5, $zero, 12 sw $t2, 0($t5) occasions8:\t#I_M_RS ori $t6, $zero, 4 ori $s0, $zero, 12 sw $t3, 4($t6) occasions9:\t#I_W_RS ori $t7, $zero, 16 ori $s1, $zero, 4 ori $s2, $zero, 8 sw $t4, 0($t7) occasions10:\t#I_E_RT lui $t5, 3 sw $t5, 0($t0) occasions11:\t#I_M_RT lui $t5, 1 ori $s0, $zero, 2 sw $t5, 4($t2) occasions12:\t#I_W_RT ori $zero, $zero, 9 ori $s0, $zero, 1 ori $s1, $zero, 2 sw $zero, 0($t1) case38: ori $t0, $zero, 4 ori $t1, $zero, 8 ori $t2, $zero, 12 ori $t3, $zero, 16 ori $t4, $zero, 20 sw $t0, 0($zero) sw $t1, 0($t0) sw $t2, 4($t0) sw $t3, 8($t0) occasions13:\t#ld_E_RS lw $t5, 0($t0) sw $t2, 0($t5) occasions14:\t#ld_M_RS lw $t6, 0($t0) ori $s0, $zero, 12 sw $t3, 4($t6) occasions15:\t#ld_W_RS lw $t7, 4($t0) ori $s1, $zero, 4 ori $s2, $zero, 8 sw $t4, 0($t7) occasions16:\t#ld_E_RT lw $t5, 0($t2) sw $t5, 0($t0) occasions17:\t#ld_M_RT lw $t5, 4($t2) ori $s0, $zero, 2 sw $t5, 4($t2) occasions18:\t#ld_W_RT lw $t6, 4($t0) ori $s0, $zero, 1 ori $s1, $zero, 2 sw $t6, 0($t1) case39: ori $t0, $zero, 4 ori $t1, $zero, 8 ori $t2, $zero, 12 ori $t3, $zero, 16 sub $t4, $t0, $t1 occasionbr1:\t#R_E_RS add $t5, $t0, $t1 beq $t5, $t2, changeb1 ori $s0, $zero, 1 ori $s1, $zero, 2 changeb1: ori $s2, $zero, 3 ori $s3, $zero, 4 occasionbr2:\t#R_M_RS add $t6, $t0, $t1 ori $s0, $zero, 1 beq $t6, $t2, changeb2 ori $s0, $zero, 1 ori $s1, $zero, 2 changeb2: ori $s2, $zero, 3 ori $s3, $zero, 4 occasionbr3:\t#R_W_RS add $t7, $t0, $t1 ori $s0, $zero, 1 ori $s1, $zero, 2 beq $t7, $t2, changeb3 ori $s0, $zero, 1 ori $s1, $zero, 2 changeb3: ori $s2, $zero, 3 ori $s3, $zero, 4 occasionbr4:\t#R_E_RT sub $t5, $t1, $t2 beq $t4, $t5, changeb4 ori $s0, $zero, 1 ori $s1, $zero, 2 changeb4: ori $s2, $zero, 3 ori $s3, $zero, 4 occasionbr5:\t#R_M_RT sub $t6, $t1, $t2 ori $s0, $zero, 1 beq $t4, $t6, changeb5 ori $s0, $zero, 1 ori $s1, $zero, 2 changeb5: ori $s2, $zero, 3 ori $s3, $zero, 4 occasionbr6:\t#R_W_RT sub $t7, $t1, $t2 ori $s0, $zero, 1 ori $s1, $zero, 2 beq $t4, $t7, changeb6 ori $s0, $zero, 1 ori $s1, $zero, 2 changeb6: ori $s2, $zero, 3 ori $s3, $zero, 4 case40: ori $t0, $zero, 4 ori $t1, $zero, 8 ori $t2, $zero, 12 ori $t3, $zero, 16 sub $t4, $t0, $t1 occasionbru1:\t#R_E_RS add $t5, $t0, $t1 beq $t5, $t3, changebru1 ori $s0, $zero, 1 ori $s1, $zero, 2 changebru1: ori $s2, $zero, 3 ori $s3, $zero, 4 occasionbru2:\t#R_M_RS add $t6, $t0, $t1 ori $s0, $zero, 1 beq $t6, $t3, changebru2 ori $s0, $zero, 1 ori $s1, $zero, 2 changebru2: ori $s2, $zero, 3 ori $s3, $zero, 4 occasionbru3:\t#R_W_RS add $t7, $t0, $t1 ori $s0, $zero, 1 ori $s1, $zero, 2 beq $t7, $t3, changebru3 ori $s0, $zero, 1 ori $s1, $zero, 2 changebru3: ori $s2, $zero, 3 ori $s3, $zero, 4 occasionbru4:\t#R_E_RT sub $t5, $t1, $t2 beq $t3, $t5, changebru4 ori $s0, $zero, 1 ori $s1, $zero, 2 changebru4: ori $s2, $zero, 3 ori $s3, $zero, 4 occasionbru5:\t#R_M_RT sub $t6, $t1, $t2 ori $s0, $zero, 1 beq $t3, $t6, changebru5 ori $s0, $zero, 1 ori $s1, $zero, 2 changebru5: ori $s2, $zero, 3 ori $s3, $zero, 4 occasionbru6:\t#R_W_RT sub $t7, $t1, $t2 ori $s0, $zero, 1 ori $s1, $zero, 2 beq $t3, $t7, changebru6 ori $s0, $zero, 1 ori $s1, $zero, 2 changebru6: ori $s2, $zero, 3 ori $s3, $zero, 4 case41: ori $t0, $zero, 4 ori $t1, $zero, 8 ori $t2, $zero, 12 ori $t3, $zero, 16 sub $t4, $t0, $t1 occasionbi1:\t#I_E_RS ori $t5, $zero, 16 beq $t5, $t3, changebi1 ori $s0, $zero, 1 ori $s1, $zero, 2 changebi1: ori $s2, $zero, 3 ori $s3, $zero, 4 occasionbi2:\t#I_M_RS ori $t6, $zero, 16 ori $s0, $zero, 1 beq $t6, $t3, changebi2 ori $s0, $zero, 1 ori $s1, $zero, 2 changebi2: ori $s2, $zero, 3 ori $s3, $zero, 4 occasionbi3:\t#I_W_RS ori $t7, $zero, 16 ori $s0, $zero, 1 ori $s1, $zero, 2 beq $t7, $t3, changebi3 ori $s0, $zero, 1 ori $s1, $zero, 2 changebi3: ori $s2, $zero, 3 ori $s3, $zero, 4 occasionbi4:\t#I_E_RT ori $t5, $zero, 8 beq $t1, $t5, changebi4 ori $s0, $zero, 1 ori $s1, $zero, 2 changebi4: ori $s2, $zero, 3 ori $s3, $zero, 4 occasionbi5:\t#I_M_RT ori $t6, $zero, 8 ori $s0, $zero, 1 beq $t1, $t6, changebi5 ori $s0, $zero, 1 ori $s1, $zero, 2 changebi5: ori $s2, $zero, 3 ori $s3, $zero, 4 occasionbi6:\t#I_W_RT ori $t7, $zero, 8 ori $s0, $zero, 1 ori $s1, $zero, 2 beq $t1, $t7, changebi6 ori $s0, $zero, 1 ori $s1, $zero, 2 changebi6: ori $s2, $zero, 3 ori $s3, $zero, 4 case42: ori $t0, $zero, 4 ori $t1, $zero, 8 ori $t2, $zero, 12 ori $t3, $zero, 16 sub $t4, $t0, $t1 occasionbiu1:\t#I_E_RS ori $t5, $zero, 16 beq $t5, $t2, changebiu1 ori $s0, $zero, 1 ori $s1, $zero, 2 changebiu1: ori $s2, $zero, 3 ori $s3, $zero, 4 occasionbiu2:\t#I_M_RS ori $t6, $zero, 16 ori $s0, $zero, 1 beq $t6, $t2, changebiu2 ori $s0, $zero, 1 ori $s1, $zero, 2 changebiu2: ori $s2, $zero, 3 ori $s3, $zero, 4 occasionbiu3:\t#I_W_RS ori $t7, $zero, 16 ori $s0, $zero, 1 ori $s1, $zero, 2 beq $t7, $t2, changebiu3 ori $s0, $zero, 1 ori $s1, $zero, 2 changebiu3: ori $s2, $zero, 3 ori $s3, $zero, 4 occasionbiu4:\t#I_E_RT ori $t5, $zero, 8 beq $t2, $t5, changebiu4 ori $s0, $zero, 1 ori $s1, $zero, 2 changebiu4: ori $s2, $zero, 3 ori $s3, $zero, 4 occasionbiu5:\t#I_M_RT ori $t6, $zero, 8 ori $s0, $zero, 1 beq $t2, $t6, changebiu5 ori $s0, $zero, 1 ori $s1, $zero, 2 changebiu5: ori $s2, $zero, 3 ori $s3, $zero, 4 occasionbiu6:\t#I_W_RT ori $t7, $zero, 8 ori $s0, $zero, 1 ori $s1, $zero, 2 beq $t2, $t7, changebiu6 ori $s0, $zero, 1 ori $s1, $zero, 2 changebiu6: ori $s2, $zero, 3 ori $s3, $zero, 4 case43: ori $t0, $zero, 4 ori $t1, $zero, 8 ori $t2, $zero, 12 ori $s0, $zero, 1 sw $t0, 0($zero) sw $t1, 4($zero) sw $t2, 8($zero) ori $s0, $zero, 1 ori $s1, $zero, 2 occasionbld1:\t#ld_E_RS lw $t3, 0($t0) beq $t3, $t1, changebld1 ori $s0, $zero, 1 ori $s1, $zero, 2 changebld1: ori $s2, $zero, 2 ori $s3, $zero, 3 occasionbld2:\t#ld_M_RS lw $t4, 0($t0) ori $s2, $zero, 2 beq $t4, $t1, changebld2 ori $s0, $zero, 1 ori $s1, $zero, 2 changebld2: ori $s2, $zero, 2 ori $s3, $zero, 3 occasionbld3:\t#ld_W_RS lw $t5, 0($t0) ori $s2, $zero, 2 ori $s3, $zero, 3 beq $t5, $t1, changebld3 ori $s0, $zero, 1 ori $s1, $zero, 2 changebld3: ori $s2, $zero, 2 ori $s3, $zero, 3 occasionbld4:\t#ld_E_RT lw $t6, 0($t0) beq $t6, $t1, changebld4 ori $s0, $zero, 1 ori $s1, $zero, 2 changebld4: ori $s2, $zero, 2 ori $s3, $zero, 3 occasionbld5:\t#ld_M_RT lw $t7, 0($t0) ori $s2, $zero, 2 beq $t7, $t1, changebld5 ori $s0, $zero, 1 ori $s1, $zero, 2 changebld5: ori $s2, $zero, 2 ori $s3, $zero, 3 occasionbld6:\t#ld_W_RT lw $t8, 0($t0) ori $s2, $zero, 2 ori $s3, $zero, 3 beq $t8, $t1, changebld6 ori $s0, $zero, 1 ori $s1, $zero, 2 changebld6: ori $s2, $zero, 2 ori $s3, $zero, 3 case44: ori $t0, $zero, 4 ori $t1, $zero, 8 ori $t2, $zero, 12 ori $s0, $zero, 1 sw $t0, 0($zero) sw $t1, 4($zero) sw $t2, 8($zero) ori $s0, $zero, 1 ori $s1, $zero, 2 occasionbldu1:\t#ld_E_RS lw $t3, 0($t0) beq $t3, $t0, changebldu1 ori $s0, $zero, 1 ori $s1, $zero, 2 changebldu1: ori $s2, $zero, 2 ori $s3, $zero, 3 occasionbldu2:\t#ld_M_RS lw $t4, 0($t0) ori $s2, $zero, 2 beq $t4, $t0, changebldu2 ori $s0, $zero, 1 ori $s1, $zero, 2 changebldu2: ori $s2, $zero, 2 ori $s3, $zero, 3 occasionbldu3:\t#ld_W_RS lw $t5, 0($t0) ori $s2, $zero, 2 ori $s3, $zero, 3 beq $t5, $t0, changebldu3 ori $s0, $zero, 1 ori $s1, $zero, 2 changebldu3: ori $s2, $zero, 2 ori $s3, $zero, 3 occasionbldu4:\t#ld_E_RT lw $t6, 0($t0) beq $t0, $t6, changebldu4 ori $s0, $zero, 1 ori $s1, $zero, 2 changebldu4: ori $s2, $zero, 2 ori $s3, $zero, 3 occasionbldu5:\t#ld_M_RT lw $t7, 0($t0) ori $s2, $zero, 2 beq $t0, $t7, changebldu5 ori $s0, $zero, 1 ori $s1, $zero, 2 changebldu5: ori $s2, $zero, 2 ori $s3, $zero, 3 occasionbldu6:\t#ld_W_RT lw $t8, 0($t0) ori $s2, $zero, 2 ori $s3, $zero, 3 beq $t0, $t8, changebldu6 ori $s0, $zero, 1 ori $s1, $zero, 2 changebldu6: ori $s2, $zero, 2 ori $s3, $zero, 3 case45: ori $t0, $zero, 4 ori $t1, $zero, 0x000039a0 ori $t2, $zero, 0x000039c0 ori $t3, $zero, 0x000039a4 ori $t4, $zero, 0x00003a04 occasionbj1:\t#jal_M_RS jal changebj1 ori $s0, $zero, 1 ori $s1, $zero, 2 changebj1: beq $ra, $t1, changebj11 ori $s0, $zero, 1 ori $s1, $zero, 2 changebj11: ori $s2, $zero, 2 ori $s3, $zero, 3 occasionbj2:\t#jal_W_RS jal changebj2 ori $s0, $zero, 1 ori $s1, $zero, 2 changebj2: ori $s2, $zero, 2 beq $ra, $t2, changebj21 ori $s0, $zero, 1 ori $s1, $zero, 2 changebj21: ori $s2, $zero, 2 ori $s3, $zero, 3 occasionbj3:\t#jal_M_RT jal changebj3 ori $s0, $zero, 1 ori $s1, $zero, 2 changebj3: beq $t3, $ra, changebj31 ori $s0, $zero, 1 ori $s1, $zero, 2 changebj31: ori $s2, $zero, 2 ori $s3, $zero, 3 occasionbj4:\t#jal_W_RT jal changebj4 ori $s0, $zero, 1 ori $s1, $zero, 2 changebj4: ori $s2, $zero, 2 beq $t4, $ra, changebj41 ori $s0, $zero, 1 ori $s1, $zero, 2 changebj41: ori $s2, $zero, 2 ori $s3, $zero, 3 case46: ori $t0, $zero, 4 ori $t1, $zero, 0x0000399c ori $t2, $zero, 0x000039bc ori $t3, $zero, 0x000039e0 ori $t4, $zero, 0x00003a00 occasionbju1:\t#jal_M_RS jal changebju1 ori $s0, $zero, 1 ori $s1, $zero, 2 changebju1: beq $ra, $t1, changebju11 ori $s0, $zero, 1 ori $s1, $zero, 2 changebju11: ori $s2, $zero, 2 ori $s3, $zero, 3 occasionbju2:\t#jal_W_RS jal changebju2 ori $s0, $zero, 1 ori $s1, $zero, 2 changebju2: ori $s2, $zero, 2 beq $ra, $t2, changebju21 ori $s0, $zero, 1 ori $s1, $zero, 2 changebju21: ori $s2, $zero, 2 ori $s3, $zero, 3 occasionbju3:\t#jal_M_RT jal changebju3 ori $s0, $zero, 1 ori $s1, $zero, 2 changebju3: beq $t3, $ra, changebju31 ori $s0, $zero, 1 ori $s1, $zero, 2 changebju31: ori $s2, $zero, 2 ori $s3, $zero, 3 occasionbju4:\t#jal_W_RT jal changebju4 ori $s0, $zero, 1 ori $s1, $zero, 2 changebju4: ori $s2, $zero, 2 beq $t4, $ra, changebju41 ori $s0, $zero, 1 ori $s1, $zero, 2 changebju41: ori $s2, $zero, 2 ori $s3, $zero, 3 case47: ori $t0, $zero, 4 ori $t1, $zero, 0x00003010 ori $t2, $zero, 0x00003030 ori $t3, $zero, 0x00003050 ori $t4, $zero, 0x00003070 occasionjms1:\t#jal_M_RS jal changejms1 ori $s0, $zero, 1 ori $s1, $zero, 2 ori $s2, $zero, 2 ori $s3, $zero, 3 j case48 ori $s4, $zero, 4 changejms1: jr $ra ori $s0, $zero, 1 ori $s1, $zero, 2 case48: ori $t0, $zero, 4 ori $t1, $zero, 0x00003010 ori $t2, $zero, 0x00003030 ori $t3, $zero, 0x00003050 ori $t4, $zero, 0x00003070 occasionjws1:\t#jal_W_RS jal changejws1 ori $s0, $zero, 1 ori $s1, $zero, 2 ori $s2, $zero, 2 ori $s3, $zero, 3 j case49 ori $s4, $zero, 4 changejws1: ori $s3, $zero, 3 jr $ra ori $s0, $zero, 1 ori $s1, $zero, 2 case49: ori $t0, $zero, 4 ori $t1, $zero, 8 ori $t2, $zero, 0x00003b58 ori $s0, $zero, 1 ori $s1, $zero, 2 ori $s2, $zero, 3 occasionres1:\t#R_E_RS add $t3, $t0, $t2 jr $t3 ori $s0, $zero, 1 ori $s1, $zero, 2 ori $s2, $zero, 3 case50: ori $t0, $zero, 4 ori $t1, $zero, 8 ori $t2, $zero, 0x00003b88 ori $s0, $zero, 1 ori $s1, $zero, 2 ori $s2, $zero, 3 occasionrms1:\t#R_M_RS add $t3, $t0, $t2 ori $s0, $zero, 1 jr $t3 ori $s0, $zero, 1 ori $s1, $zero, 2 ori $s2, $zero, 3 case51: ori $t0, $zero, 4 ori $t1, $zero, 8 ori $t2, $zero, 0x00003bbc ori $s0, $zero, 1 ori $s1, $zero, 2 ori $s2, $zero, 3 occasionrws1:\t#R_W_RS add $t3, $t0, $t2 ori $s0, $zero, 1 ori $s1, $zero, 2 jr $t3 ori $s0, $zero, 1 ori $s1, $zero, 2 ori $s2, $zero, 3 case52: ori $t0, $zero, 4 ori $t1, $zero, 8 ori $t2, $zero, 0x00003bec ori $s0, $zero, 1 ori $s1, $zero, 2 ori $s2, $zero, 3 occasionies1:\t#I_E_RS ori $t3, $t2, 0 jr $t3 ori $s0, $zero, 1 ori $s1, $zero, 2 ori $s2, $zero, 3 case53: ori $t0, $zero, 4 ori $t1, $zero, 8 ori $t2, $zero, 0x00003c1c ori $s0, $zero, 1 ori $s1, $zero, 2 ori $s2, $zero, 3 occasionims1:\t#I_M_RS ori $t3, $t2, 0 ori $s0, $zero, 1 jr $t3 ori $s0, $zero, 1 ori $s1, $zero, 2 ori $s2, $zero, 3 case54: ori $t0, $zero, 4 ori $t1, $zero, 8 ori $t2, $zero, 0x00003c50 ori $s0, $zero, 1 ori $s1, $zero, 2 ori $s2, $zero, 3 occasioniws1:\t#I_W_RS ori $t3, $t2, 0 ori $s0, $zero, 1 ori $s1, $zero, 2 jr $t3 ori $s0, $zero, 1 ori $s1, $zero, 2 ori $s2, $zero, 3 case55: ori $t0, $zero, 0X00003c84 ori $t1, $zero, 0X00003008 ori $s0, $zero, 0 ori $s0, $zero, 0 sw $t0, 0($zero) sw $t1, 4($zero) ori $s0, $zero, 0 ori $s0, $zero, 0 occasionldes1:\t#ld_E_RS lw $t2, 0($zero) jr $t2 ori $s0, $zero, 0 ori $s0, $zero, 0 ori $s0, $zero, 0 case56: ori $t0, $zero, 0X00003cbc ori $t1, $zero, 0X00003008 ori $s0, $zero, 0 ori $s0, $zero, 0 sw $t0, 0($zero) sw $t1, 4($zero) ori $s0, $zero, 0 ori $s0, $zero, 0 occasionldms1:\t#ld_M_RS lw $t2, 0($zero) ori $s0, $zero, 0 jr $t2 ori $s0, $zero, 0 ori $s0, $zero, 0 ori $s0, $zero, 0 case57: ori $t0, $zero, 0X00003cf8 ori $t1, $zero, 0X00003008 ori $s0, $zero, 0 ori $s0, $zero, 0 sw $t0, 0($zero) sw $t1, 4($zero) ori $s0, $zero, 0 ori $s0, $zero, 0 occasionldws1:\t#ld_W_RS lw $t2, 0($zero) ori $s0, $zero, 0 ori $s0, $zero, 0 jr $t2 ori $s0, $zero, 0 ori $s0, $zero, 0 ori $s0, $zero, 0 四.思考题 1.我们使用提前分支判断的方法尽早产生结果来减少因不确定而带来的开销，但实际上这种方法并非总能提高效率，请从流水线冒险的角度思考其原因并给出一个指令序列的例子 我们使用两个寄存器值的时间最早来到了D级，所以很可能会引发暂停.\n如下面这种情况，若beq的结果在E级产生，则不需要暂停，可以转发，但是现在beq在D级的时候lw还在M级，没有产生结果，需要暂停。\n1 2 3 lw $t0, 0($0) nop beq $t0, $t0, label 2.因为延迟槽的存在，对于 jal 等需要将指令地址写入寄存器的指令，要写回 PC + 8，请思考为什么这样设计？ 因为延迟槽的存在，跳转指令的后一条必然会执行，所以需要把PC+8写入寄存器，不然jr时延迟槽内的指令会再执行一次 3.我们要求大家所有转发数据都来源于流水寄存器而不能是功能部件（如 DM 、 ALU ），请思考为什么？ 会导致时钟周期变长、时钟频率降低，整体花费时间变长 4.我们为什么要使用 GPR 内部转发？该如何实现？ 为了保持W级的写入和此时D级的读出是同一个值，规避数据冒险。实现方法就是在RF模块里加上一个MUX，判断当冲突条件满足时，转发。 5.我们转发时数据的需求者和供给者可能来源于哪些位置？共有哪些转发数据通路？ 见第二部分HCU的分析 6.在课上测试时，我们需要你现场实现新的指令，对于这些新的指令，你可能需要在原有的数据通路上做哪些扩展或修改？提示：你可以对指令进行分类，思考每一类指令可能修改或扩展哪些位置 对于计算类：首先改变MCU，注意每个指令的控制信号的对应，再改ALU的结构，增加输出选择 对于访存类：改变MCU+修改DM增加相应的功能 对于跳转类：修改MCU+NPC相应功能修改 小技巧：寻找已有的指令中与新增的指令相似的指令（可能不止一条），然后顺着这几条指令改。 7.简要描述你的译码器架构，并思考该架构的优势以及不足 ​\t我采用了集中式译码，优势是不需要编写多个译码器，缺点是流水线寄存器比较难以维护。\n","wordCount":"4994","inLanguage":"en","datePublished":"2023-11-12T18:12:07+08:00","dateModified":"2023-11-12T18:12:07+08:00","author":{"@type":"Person","name":"sudo"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://coder0xe.github.io/posts/p5-pipeline-cpu-design-document/"},"publisher":{"@type":"Organization","name":"coder0xe's blog","logo":{"@type":"ImageObject","url":"https://coder0xe.github.io/favicon.ico"}}}</script></head><body id=top><header class=header><nav class=nav><div class=logo><a href=https://coder0xe.github.io/ accesskey=h title="coder0xe's blog (Alt + H)">coder0xe's blog</a><div class=logo-switches><button id=theme-toggle accesskey=t title="(Alt + T)" aria-label="Toggle theme">
+<svg id="moon" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+<svg id="sun" width="24" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button></div></div><ul id=menu><li><a href=https://coder0xe.github.io/ title=首页><span>首页</span></a></li><li><a href=https://coder0xe.github.io/categories/ title=分类><span>分类</span></a></li><li><a href=https://coder0xe.github.io/tags/ title=标签><span>标签</span></a></li><li><a href=https://coder0xe.github.io/archives/ title=归档><span>归档</span></a></li><li><a href=https://coder0xe.github.io/search/ title=搜索><span>搜索</span></a></li></ul></nav></header><main class=main><article class=post-single><header class=post-header><div class=breadcrumbs><a href=https://coder0xe.github.io/>Home</a>&nbsp;»&nbsp;<a href=https://coder0xe.github.io/posts/>Posts</a></div><h1 class="post-title entry-hint-parent">P5-pipeline-CPU-Design-Document</h1><div class=post-description>初次编写流水线CPU，并将在P6-P8中进行增量开发</div><div class=post-meta><span title='2023-11-12 18:12:07 +0800 +0800'>November 12, 2023</span>&nbsp;·&nbsp;<span>24 min</span>&nbsp;·&nbsp;<span>sudo</span></div></header><div class=toc><details open><summary accesskey=c title="(Alt + C)"><span class=details>Table of Contents</span></summary><div class=inner><ul><li><a href=#p5-pipeline-cpu-design-document aria-label=P5-pipeline-CPU-Design-Document>P5-pipeline-CPU-Design-Document</a><ul><li><a href=#%e9%9b%b6%e6%95%b0%e6%8d%ae%e9%80%9a%e8%b7%af%e6%8f%8f%e8%bf%b0 aria-label=零.数据通路描述>零.数据通路描述</a></li><li><a href=#%e4%b8%80%e6%95%b0%e6%8d%ae%e5%91%bd%e5%90%8d%e8%a7%84%e8%8c%83checkstyle aria-label=一.数据命名规范(checkstyle)>一.数据命名规范(checkstyle)</a></li><li><a href=#%e4%ba%8c%e9%83%a8%e4%bb%b6%e8%ae%be%e8%ae%a1 aria-label=二.部件设计>二.部件设计</a><ul><li><a href=#1mcumain-control-unit aria-label="1.MCU(main control unit)">1.MCU(main control unit)</a><ul><li><a href=#1%e7%ab%af%e5%8f%a3%e5%ae%9a%e4%b9%89%e5%88%97%e8%a1%a8 aria-label=1.端口定义列表>1.端口定义列表</a></li><li><a href=#2%e5%88%86%e6%8c%87%e4%bb%a4%e6%a2%b3%e7%90%86%e6%8e%a7%e5%88%b6%e4%bf%a1%e5%8f%b7 aria-label=2.分指令梳理控制信号>2.分指令梳理控制信号</a></li><li><a href=#3%e8%af%91%e7%a0%81%e6%96%b9%e5%bc%8f%e7%9a%84%e6%94%b9%e5%8a%a8 aria-label=3.译码方式的改动>3.译码方式的改动</a></li></ul></li><li><a href=#2hcuhazard-control-unit aria-label="2.HCU(hazard control unit)">2.HCU(hazard control unit)</a><ul><li><a href=#1%e6%95%b0%e6%8d%ae%e5%86%92%e9%99%a9%e4%b8%ad%e7%9a%84%e4%be%9b%e7%bb%99%e9%9c%80%e6%b1%82%e6%a8%a1%e5%9e%8b aria-label=1.数据冒险中的供给需求模型>1.数据冒险中的供给需求模型</a><ul><li><a href=#1%e4%be%9b%e7%bb%99%e8%80%85%e4%b8%8e%e9%9c%80%e6%b1%82%e8%80%85%e5%88%86%e6%9e%90 aria-label=1.供给者与需求者分析>1.供给者与需求者分析</a></li><li><a href=#2tuse-tnew aria-label="2.Tuse /Tnew">2.Tuse /Tnew</a></li></ul></li><li><a href=#2%e5%86%92%e9%99%a9%e5%88%86%e6%9e%90 aria-label=2.冒险分析>2.冒险分析</a><ul><li><a href=#1%e5%af%b9%e6%8c%87%e4%bb%a4%e6%9e%84%e5%bb%batuse-tnew%e8%a1%a8 aria-label=1.对指令构建Tuse-Tnew表>1.对指令构建Tuse-Tnew表</a></li><li><a href=#2stallforward%e6%8e%a7%e5%88%b6%e5%88%97%e8%a1%a8 aria-label=2.stall/forward控制列表>2.stall/forward控制列表</a></li><li><a href=#3%e5%9f%ba%e7%a1%80%e6%8c%87%e4%bb%a4%e7%9a%84%e6%95%b0%e6%8d%ae%e9%80%9a%e8%b7%af%e5%90%84%e4%b8%aa%e6%b5%81%e6%b0%b4%e6%ae%b5%e9%9c%80%e8%a6%81%e4%bc%a0%e9%80%92%e7%9a%84%e4%bf%a1%e5%8f%b7 aria-label=3.基础指令的数据通路/各个流水段需要传递的信号>3.基础指令的数据通路/各个流水段需要传递的信号</a></li><li><a href=#4hcu%e8%ae%be%e8%ae%a1 aria-label=4.HCU设计>4.HCU设计</a><ul><li><a href=#1%e7%ab%af%e5%8f%a3%e5%ae%9a%e4%b9%89%e5%88%97%e8%a1%a8-1 aria-label=1.端口定义列表>1.端口定义列表</a></li><li><a href=#2%e6%8e%a7%e5%88%b6%e8%bd%ac%e5%8f%91%e6%9a%82%e5%81%9c%e7%9a%84%e5%86%85%e9%83%a8%e9%80%bb%e8%be%91 aria-label=2.控制转发/暂停的内部逻辑>2.控制转发/暂停的内部逻辑</a></li></ul></li></ul></li></ul></li><li><a href=#3alu aria-label=3.ALU>3.ALU</a><ul><li><a href=#1%e7%ab%af%e5%8f%a3%e5%ae%9a%e4%b9%89%e5%88%97%e8%a1%a8-2 aria-label=1.端口定义列表>1.端口定义列表</a></li><li><a href=#2aluop%e7%bc%96%e7%a0%81%e4%b8%8e%e8%bf%90%e7%ae%97%e9%80%89%e6%8b%a9 aria-label=2.ALUOp编码与运算选择>2.ALUOp编码与运算选择</a></li></ul></li><li><a href=#4ext aria-label=4.EXT>4.EXT</a><ul><li><a href=#%e7%ab%af%e5%8f%a3%e5%ae%9a%e4%b9%89%e5%88%97%e8%a1%a8 aria-label=端口定义列表>端口定义列表</a></li></ul></li><li><a href=#5grf aria-label=5.GRF>5.GRF</a><ul><li><a href=#1%e7%ab%af%e5%8f%a3%e5%ae%9a%e4%b9%89%e5%88%97%e8%a1%a8-3 aria-label=1.端口定义列表>1.端口定义列表</a></li><li><a href=#2grf%e5%86%85%e9%83%a8%e8%bd%ac%e5%8f%91 aria-label=2.GRF内部转发>2.GRF内部转发</a></li></ul></li><li><a href=#6ifu aria-label=6.IFU>6.IFU</a><ul><li><a href=#%e7%ab%af%e5%8f%a3%e5%ae%9a%e4%b9%89%e5%88%97%e8%a1%a8-1 aria-label=端口定义列表>端口定义列表</a></li></ul></li><li><a href=#7npc aria-label=7.NPC>7.NPC</a><ul><li><a href=#1%e7%ab%af%e5%8f%a3%e5%ae%9a%e4%b9%89%e5%88%97%e8%a1%a8-4 aria-label=1.端口定义列表>1.端口定义列表</a></li><li><a href=#2npcop%e7%bc%96%e7%a0%81%e4%b8%8e%e5%9c%b0%e5%9d%80%e9%80%89%e6%8b%a9 aria-label=2.NPCOp编码与地址选择>2.NPCOp编码与地址选择</a></li></ul></li><li><a href=#8cmp aria-label=8.CMP>8.CMP</a><ul><li><a href=#1%e7%ab%af%e5%8f%a3%e5%ae%9a%e4%b9%89%e5%88%97%e8%a1%a8-5 aria-label=1.端口定义列表>1.端口定义列表</a></li><li><a href=#2cmpop%e7%bc%96%e7%a0%81%e4%b8%8e%e5%af%b9%e5%ba%94%e6%8c%87%e4%bb%a4 aria-label=2.CMPOp编码与对应指令>2.CMPOp编码与对应指令</a></li></ul></li><li><a href=#9dm aria-label=9.DM>9.DM</a><ul><li><a href=#1%e7%ab%af%e5%8f%a3%e5%ae%9a%e4%b9%89%e5%88%97%e8%a1%a8-6 aria-label=1.端口定义列表>1.端口定义列表</a></li><li><a href=#2dmop%e7%bc%96%e7%a0%81%e4%b8%8e%e5%af%b9%e5%ba%94%e6%8c%87%e4%bb%a4 aria-label=2.DMOp编码与对应指令>2.DMOp编码与对应指令</a></li></ul></li><li><a href=#10mux aria-label=10.MUX>10.MUX</a><ul><li><a href=#1%e5%8a%9f%e8%83%bd%e5%a4%9a%e8%b7%af%e9%80%89%e6%8b%a9%e5%99%a8 aria-label=1.功能多路选择器>1.功能多路选择器</a><ul><li><a href=#1mux_a3-d%e7%ba%a7%e5%86%99%e5%85%a5%e5%af%84%e5%ad%98%e5%99%a8%e9%80%89%e6%8b%a9 aria-label="1.MUX_A3 D级写入寄存器选择">1.MUX_A3 D级写入寄存器选择</a><ul><li><a href=#%e7%ab%af%e5%8f%a3%e5%ae%9a%e4%b9%89%e5%88%97%e8%a1%a8-2 aria-label=端口定义列表>端口定义列表</a></li><li><a href=#%e9%80%89%e6%8b%a9%e4%bf%a1%e5%8f%b7%e4%b8%8e%e7%bb%93%e6%9e%9c aria-label=选择信号与结果>选择信号与结果</a></li></ul></li><li><a href=#2mux_alu_b-alub%e7%ab%af%e5%8f%a3%e9%80%89%e6%8b%a9 aria-label="2.MUX_ALU_B ALUB端口选择">2.MUX_ALU_B ALUB端口选择</a><ul><li><a href=#%e7%ab%af%e5%8f%a3%e5%ae%9a%e4%b9%89%e5%88%97%e8%a1%a8-3 aria-label=端口定义列表>端口定义列表</a></li><li><a href=#%e9%80%89%e6%8b%a9%e4%bf%a1%e5%8f%b7%e4%b8%8e%e7%bb%93%e6%9e%9c-1 aria-label=选择信号与结果>选择信号与结果</a></li></ul></li><li><a href=#3mux_e_out--%e9%80%89%e6%8b%a9e%e7%ba%a7%e8%bd%ac%e5%8f%91%e6%95%b0%e6%8d%ae aria-label="3.MUX_E_out  选择E级转发数据">3.MUX_E_out 选择E级转发数据</a><ul><li><a href=#%e7%ab%af%e5%8f%a3%e5%ae%9a%e4%b9%89%e5%88%97%e8%a1%a8-4 aria-label=端口定义列表>端口定义列表</a></li><li><a href=#%e9%80%89%e6%8b%a9%e4%bf%a1%e5%8f%b7%e4%b8%8e%e7%bb%93%e6%9e%9c-2 aria-label=选择信号与结果>选择信号与结果</a></li></ul></li><li><a href=#4mux_m_out-%e9%80%89%e6%8b%a9m%e7%ba%a7%e8%bd%ac%e5%8f%91%e6%95%b0%e6%8d%ae aria-label="4.MUX_M_out 选择M级转发数据">4.MUX_M_out 选择M级转发数据</a><ul><li><a href=#%e7%ab%af%e5%8f%a3%e5%ae%9a%e4%b9%89%e5%88%97%e8%a1%a8-5 aria-label=端口定义列表>端口定义列表</a></li><li><a href=#%e9%80%89%e6%8b%a9%e4%bf%a1%e5%8f%b7%e4%b8%8e%e7%bb%93%e6%9e%9c-3 aria-label=选择信号与结果>选择信号与结果</a></li></ul></li><li><a href=#5mux_w_out-%e9%80%89%e6%8b%a9w%e7%ba%a7%e8%bd%ac%e5%8f%91%e6%95%b0%e6%8d%ae aria-label="5.MUX_W_out 选择W级转发数据">5.MUX_W_out 选择W级转发数据</a><ul><li><a href=#%e7%ab%af%e5%8f%a3%e5%ae%9a%e4%b9%89%e5%88%97%e8%a1%a8-6 aria-label=端口定义列表>端口定义列表</a></li><li><a href=#%e9%80%89%e6%8b%a9%e4%bf%a1%e5%8f%b7%e4%b8%8e%e7%bb%93%e6%9e%9c-4 aria-label=选择信号与结果>选择信号与结果</a></li></ul></li></ul></li><li><a href=#2%e8%bd%ac%e5%8f%91%e5%a4%9a%e8%b7%af%e9%80%89%e6%8b%a9%e5%99%a8 aria-label=2.转发多路选择器>2.转发多路选择器</a><ul><li><a href=#1hmux_cmp_d1-cmp%e6%a8%a1%e5%9d%97rs%e5%af%84%e5%ad%98%e5%99%a8%e5%80%bc%e8%bd%ac%e5%8f%91 aria-label="1.HMUX_CMP_D1 CMP模块rs寄存器值转发">1.HMUX_CMP_D1 CMP模块rs寄存器值转发</a><ul><li><a href=#%e7%ab%af%e5%8f%a3%e5%ae%9a%e4%b9%89%e5%88%97%e8%a1%a8-7 aria-label=端口定义列表>端口定义列表</a></li><li><a href=#%e9%80%89%e6%8b%a9%e4%bf%a1%e5%8f%b7%e4%b8%8e%e7%bb%93%e6%9e%9c-5 aria-label=选择信号与结果>选择信号与结果</a></li></ul></li><li><a href=#2hmux_cmp_d2-cmp%e6%a8%a1%e5%9d%97rt%e5%af%84%e5%ad%98%e5%99%a8%e5%80%bc%e8%bd%ac%e5%8f%91 aria-label="2.HMUX_CMP_D2 CMP模块rt寄存器值转发">2.HMUX_CMP_D2 CMP模块rt寄存器值转发</a><ul><li><a href=#%e7%ab%af%e5%8f%a3%e5%ae%9a%e4%b9%89%e5%88%97%e8%a1%a8-8 aria-label=端口定义列表>端口定义列表</a></li><li><a href=#%e9%80%89%e6%8b%a9%e4%bf%a1%e5%8f%b7%e4%b8%8e%e7%bb%93%e6%9e%9c-6 aria-label=选择信号与结果>选择信号与结果</a></li></ul></li><li><a href=#3hmux_alu_a-alu%e6%a8%a1%e5%9d%97v1%e5%80%bc%e8%bd%ac%e5%8f%91 aria-label="3.HMUX_ALU_A ALU模块V1值转发">3.HMUX_ALU_A ALU模块V1值转发</a><ul><li><a href=#%e7%ab%af%e5%8f%a3%e5%ae%9a%e4%b9%89%e5%88%97%e8%a1%a8-9 aria-label=端口定义列表>端口定义列表</a></li><li><a href=#%e9%80%89%e6%8b%a9%e4%bf%a1%e5%8f%b7%e4%b8%8e%e7%bb%93%e6%9e%9c-7 aria-label=选择信号与结果>选择信号与结果</a></li></ul></li><li><a href=#4hmux_alu_b-alu%e6%a8%a1%e5%9d%97v2%e5%80%bc%e8%bd%ac%e5%8f%91 aria-label="4.HMUX_ALU_B ALU模块V2值转发">4.HMUX_ALU_B ALU模块V2值转发</a><ul><li><a href=#%e7%ab%af%e5%8f%a3%e5%ae%9a%e4%b9%89%e5%88%97%e8%a1%a8-10 aria-label=端口定义列表>端口定义列表</a></li><li><a href=#%e9%80%89%e6%8b%a9%e4%bf%a1%e5%8f%b7%e4%b8%8e%e7%bb%93%e6%9e%9c-8 aria-label=选择信号与结果>选择信号与结果</a></li></ul></li><li><a href=#5hmux_dm-dm%e5%86%99%e5%85%a5%e6%95%b0%e6%8d%ae%e8%bd%ac%e5%8f%91 aria-label="5.HMUX_DM DM写入数据转发">5.HMUX_DM DM写入数据转发</a><ul><li><a href=#%e7%ab%af%e5%8f%a3%e5%ae%9a%e4%b9%89%e5%88%97%e8%a1%a8-11 aria-label=端口定义列表>端口定义列表</a></li><li><a href=#%e9%80%89%e6%8b%a9%e4%bf%a1%e5%8f%b7%e4%b8%8e%e7%bb%93%e6%9e%9c-9 aria-label=选择信号与结果>选择信号与结果</a></li></ul></li><li><a href=#6hmux_npc-npc%e6%a8%a1%e5%9d%97%e8%b7%b3%e8%bd%ac%e5%af%84%e5%ad%98%e5%99%a8%e5%80%bc%e8%bd%ac%e5%8f%91 aria-label="6.HMUX_NPC NPC模块跳转寄存器值转发">6.HMUX_NPC NPC模块跳转寄存器值转发</a><ul><li><a href=#%e7%ab%af%e5%8f%a3%e5%ae%9a%e4%b9%89%e5%88%97%e8%a1%a8-12 aria-label=端口定义列表>端口定义列表</a></li><li><a href=#%e9%80%89%e6%8b%a9%e4%bf%a1%e5%8f%b7%e4%b8%8e%e7%bb%93%e6%9e%9c-10 aria-label=选择信号与结果>选择信号与结果</a></li></ul></li></ul></li></ul></li><li><a href=#11%e6%b5%81%e6%b0%b4%e7%ba%bf%e5%af%84%e5%ad%98%e5%99%a8 aria-label=11.流水线寄存器>11.流水线寄存器</a><ul><li><a href=#1d_reg aria-label=1.D_REG>1.D_REG</a></li><li><a href=#2e_reg aria-label=2.E_REG>2.E_REG</a></li><li><a href=#3m_reg aria-label=3.M_REG>3.M_REG</a></li><li><a href=#4w_reg aria-label=4.W_REG>4.W_REG</a></li></ul></li><li><a href=#12%e9%a1%b6%e5%b1%82%e8%bf%9e%e6%8e%a5 aria-label=12.顶层连接>12.顶层连接</a></li></ul></li><li><a href=#%e4%b8%89-test aria-label="三. test">三. test</a></li><li><a href=#%e5%9b%9b%e6%80%9d%e8%80%83%e9%a2%98 aria-label=四.思考题>四.思考题</a><ul><ul><li><a href=#1%e6%88%91%e4%bb%ac%e4%bd%bf%e7%94%a8%e6%8f%90%e5%89%8d%e5%88%86%e6%94%af%e5%88%a4%e6%96%ad%e7%9a%84%e6%96%b9%e6%b3%95%e5%b0%bd%e6%97%a9%e4%ba%a7%e7%94%9f%e7%bb%93%e6%9e%9c%e6%9d%a5%e5%87%8f%e5%b0%91%e5%9b%a0%e4%b8%8d%e7%a1%ae%e5%ae%9a%e8%80%8c%e5%b8%a6%e6%9d%a5%e7%9a%84%e5%bc%80%e9%94%80%e4%bd%86%e5%ae%9e%e9%99%85%e4%b8%8a%e8%bf%99%e7%a7%8d%e6%96%b9%e6%b3%95%e5%b9%b6%e9%9d%9e%e6%80%bb%e8%83%bd%e6%8f%90%e9%ab%98%e6%95%88%e7%8e%87%e8%af%b7%e4%bb%8e%e6%b5%81%e6%b0%b4%e7%ba%bf%e5%86%92%e9%99%a9%e7%9a%84%e8%a7%92%e5%ba%a6%e6%80%9d%e8%80%83%e5%85%b6%e5%8e%9f%e5%9b%a0%e5%b9%b6%e7%bb%99%e5%87%ba%e4%b8%80%e4%b8%aa%e6%8c%87%e4%bb%a4%e5%ba%8f%e5%88%97%e7%9a%84%e4%be%8b%e5%ad%90 aria-label=1.我们使用提前分支判断的方法尽早产生结果来减少因不确定而带来的开销，但实际上这种方法并非总能提高效率，请从流水线冒险的角度思考其原因并给出一个指令序列的例子>1.我们使用提前分支判断的方法尽早产生结果来减少因不确定而带来的开销，但实际上这种方法并非总能提高效率，请从流水线冒险的角度思考其原因并给出一个指令序列的例子</a></li><li><a href=#2%e5%9b%a0%e4%b8%ba%e5%bb%b6%e8%bf%9f%e6%a7%bd%e7%9a%84%e5%ad%98%e5%9c%a8%e5%af%b9%e4%ba%8e-jal-%e7%ad%89%e9%9c%80%e8%a6%81%e5%b0%86%e6%8c%87%e4%bb%a4%e5%9c%b0%e5%9d%80%e5%86%99%e5%85%a5%e5%af%84%e5%ad%98%e5%99%a8%e7%9a%84%e6%8c%87%e4%bb%a4%e8%a6%81%e5%86%99%e5%9b%9e-pc--8%e8%af%b7%e6%80%9d%e8%80%83%e4%b8%ba%e4%bb%80%e4%b9%88%e8%bf%99%e6%a0%b7%e8%ae%be%e8%ae%a1 aria-label="2.因为延迟槽的存在，对于 jal 等需要将指令地址写入寄存器的指令，要写回 PC + 8，请思考为什么这样设计？">2.因为延迟槽的存在，对于 jal 等需要将指令地址写入寄存器的指令，要写回 PC + 8，请思考为什么这样设计？</a></li><li><a href=#3%e6%88%91%e4%bb%ac%e8%a6%81%e6%b1%82%e5%a4%a7%e5%ae%b6%e6%89%80%e6%9c%89%e8%bd%ac%e5%8f%91%e6%95%b0%e6%8d%ae%e9%83%bd%e6%9d%a5%e6%ba%90%e4%ba%8e%e6%b5%81%e6%b0%b4%e5%af%84%e5%ad%98%e5%99%a8%e8%80%8c%e4%b8%8d%e8%83%bd%e6%98%af%e5%8a%9f%e8%83%bd%e9%83%a8%e4%bb%b6%e5%a6%82-dm--alu-%e8%af%b7%e6%80%9d%e8%80%83%e4%b8%ba%e4%bb%80%e4%b9%88 aria-label="3.我们要求大家所有转发数据都来源于流水寄存器而不能是功能部件（如 DM 、 ALU ），请思考为什么？">3.我们要求大家所有转发数据都来源于流水寄存器而不能是功能部件（如 DM 、 ALU ），请思考为什么？</a></li><li><a href=#4%e6%88%91%e4%bb%ac%e4%b8%ba%e4%bb%80%e4%b9%88%e8%a6%81%e4%bd%bf%e7%94%a8-gpr-%e5%86%85%e9%83%a8%e8%bd%ac%e5%8f%91%e8%af%a5%e5%a6%82%e4%bd%95%e5%ae%9e%e7%8e%b0 aria-label="4.我们为什么要使用 GPR 内部转发？该如何实现？">4.我们为什么要使用 GPR 内部转发？该如何实现？</a></li><li><a href=#5%e6%88%91%e4%bb%ac%e8%bd%ac%e5%8f%91%e6%97%b6%e6%95%b0%e6%8d%ae%e7%9a%84%e9%9c%80%e6%b1%82%e8%80%85%e5%92%8c%e4%be%9b%e7%bb%99%e8%80%85%e5%8f%af%e8%83%bd%e6%9d%a5%e6%ba%90%e4%ba%8e%e5%93%aa%e4%ba%9b%e4%bd%8d%e7%bd%ae%e5%85%b1%e6%9c%89%e5%93%aa%e4%ba%9b%e8%bd%ac%e5%8f%91%e6%95%b0%e6%8d%ae%e9%80%9a%e8%b7%af aria-label=5.我们转发时数据的需求者和供给者可能来源于哪些位置？共有哪些转发数据通路？>5.我们转发时数据的需求者和供给者可能来源于哪些位置？共有哪些转发数据通路？</a></li><li><a href=#6%e5%9c%a8%e8%af%be%e4%b8%8a%e6%b5%8b%e8%af%95%e6%97%b6%e6%88%91%e4%bb%ac%e9%9c%80%e8%a6%81%e4%bd%a0%e7%8e%b0%e5%9c%ba%e5%ae%9e%e7%8e%b0%e6%96%b0%e7%9a%84%e6%8c%87%e4%bb%a4%e5%af%b9%e4%ba%8e%e8%bf%99%e4%ba%9b%e6%96%b0%e7%9a%84%e6%8c%87%e4%bb%a4%e4%bd%a0%e5%8f%af%e8%83%bd%e9%9c%80%e8%a6%81%e5%9c%a8%e5%8e%9f%e6%9c%89%e7%9a%84%e6%95%b0%e6%8d%ae%e9%80%9a%e8%b7%af%e4%b8%8a%e5%81%9a%e5%93%aa%e4%ba%9b%e6%89%a9%e5%b1%95%e6%88%96%e4%bf%ae%e6%94%b9%e6%8f%90%e7%a4%ba%e4%bd%a0%e5%8f%af%e4%bb%a5%e5%af%b9%e6%8c%87%e4%bb%a4%e8%bf%9b%e8%a1%8c%e5%88%86%e7%b1%bb%e6%80%9d%e8%80%83%e6%af%8f%e4%b8%80%e7%b1%bb%e6%8c%87%e4%bb%a4%e5%8f%af%e8%83%bd%e4%bf%ae%e6%94%b9%e6%88%96%e6%89%a9%e5%b1%95%e5%93%aa%e4%ba%9b%e4%bd%8d%e7%bd%ae aria-label=6.在课上测试时，我们需要你现场实现新的指令，对于这些新的指令，你可能需要在原有的数据通路上做哪些扩展或修改？提示：你可以对指令进行分类，思考每一类指令可能修改或扩展哪些位置>6.在课上测试时，我们需要你现场实现新的指令，对于这些新的指令，你可能需要在原有的数据通路上做哪些扩展或修改？提示：你可以对指令进行分类，思考每一类指令可能修改或扩展哪些位置</a></li><li><a href=#7%e7%ae%80%e8%a6%81%e6%8f%8f%e8%bf%b0%e4%bd%a0%e7%9a%84%e8%af%91%e7%a0%81%e5%99%a8%e6%9e%b6%e6%9e%84%e5%b9%b6%e6%80%9d%e8%80%83%e8%af%a5%e6%9e%b6%e6%9e%84%e7%9a%84%e4%bc%98%e5%8a%bf%e4%bb%a5%e5%8f%8a%e4%b8%8d%e8%b6%b3 aria-label=7.简要描述你的译码器架构，并思考该架构的优势以及不足>7.简要描述你的译码器架构，并思考该架构的优势以及不足</a></li></ul></li></ul></ul></li></ul></div></details></div><div class=post-content><h1 id=p5-pipeline-cpu-design-document><center>P5-pipeline-CPU-Design-Document</center><a hidden class=anchor aria-hidden=true href=#p5-pipeline-cpu-design-document>#</a></h1><h2 id=零数据通路描述>零.数据通路描述<a hidden class=anchor aria-hidden=true href=#零数据通路描述>#</a></h2><p>​ MIPS架构的五级流水线CPU数据通路有以下五个阶段：</p><ol><li><p>取指阶段F(Fetch):从指令存储器中读取指令</p></li><li><p>译码阶段D(Decode):从寄存器文件中读取源操作数并对指令译码得到控制信号</p></li><li><p>执行阶段E(Execute):使用ALU执行计算</p></li><li><p>存储阶段M(Memory):读或写数据存储</p></li><li><p>写回阶段(Writeback):将结果写回到寄存器文件</p></li></ol><p>​ 通过在五个阶段之间加入寄存器来保存前面周期产生的数据(最后一个阶段的寄存器即为GRF),形成五级流水线CPU，数据通路如下图表示：</p><p><img alt=P5-pipeline loading=lazy src=/img/image-20231122234113510.png></p><h2 id=一数据命名规范checkstyle>一.数据命名规范(checkstyle)<a hidden class=anchor aria-hidden=true href=#一数据命名规范checkstyle>#</a></h2><ol><li>在控制信号连线名末尾加上“_阶段字母”，如NPCOp_D,用于区分所属的阶段</li><li>在流水线寄存器输出信号前加上“阶段字母_"，如：D_A1,用以区分所属阶段</li><li>功能部件输出信号前加上功能部件名称</li><li>常规MUX命名采用"MUX-部件名-端口名”的命名方式，选择信号命名为"Sel+部件名+端口名"</li><li>转发MUX命名采用"HMUX-部件名-端口名"的命名方式，选择信号命名为"Fwd+部件名+端口名"</li></ol><h2 id=二部件设计>二.部件设计<a hidden class=anchor aria-hidden=true href=#二部件设计>#</a></h2><h3 id=1mcumain-control-unit>1.MCU(main control unit)<a hidden class=anchor aria-hidden=true href=#1mcumain-control-unit>#</a></h3><h4 id=1端口定义列表>1.端口定义列表<a hidden class=anchor aria-hidden=true href=#1端口定义列表>#</a></h4><p>​ 主控制单元模块负责对指令进行译码以及产生控制信号，本CPU的设计采用集中式译码，在P5中需要完成的指令及其需要的控制信号列表如下，其中有些控制信号对应多路选择器的选择。</p><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>D_opcode</td><td>I</td><td>6</td><td>D级输出opcode</td></tr><tr><td>D_funct</td><td>I</td><td>6</td><td>D级输出funct</td></tr><tr><td>SelA3_D</td><td>I</td><td>2</td><td>选择当前指令要写入的寄存器，写入E级流水线寄存器</td></tr><tr><td>RegWrite_D</td><td>O</td><td>1</td><td>GRF写入使能</td></tr><tr><td>MemWrite_D</td><td>O</td><td>1</td><td>DM写入使能</td></tr><tr><td>EXTOp_D</td><td>O</td><td>1</td><td>对立即数进行符号扩展还是0扩展</td></tr><tr><td>SelEMout_D</td><td>O</td><td>1</td><td>选择E，M级转发数据信号</td></tr><tr><td>SelWout_D</td><td>O</td><td>2</td><td>选择W级转发数据信号</td></tr><tr><td>SelALUB_D</td><td>O</td><td>1</td><td>ALU的B端口rt数据与32位立即数的选择</td></tr><tr><td>CMPOp_D</td><td>O</td><td>3</td><td>D级B类指令比较选择</td></tr><tr><td>NPCOp_D</td><td>O</td><td>3</td><td>写入NPC选择</td></tr><tr><td>ALUOp_D</td><td>O</td><td>3</td><td>ALU操作信号</td></tr><tr><td>DMOp_D</td><td>O</td><td>3</td><td>DM操作信号</td></tr><tr><td>T_rs_use_D</td><td>O</td><td>2</td><td>指令处在D级时还有多少个周期需要使用rs寄存器的值</td></tr><tr><td>T_rt_use_D</td><td>O</td><td>2</td><td>指令处在D级时还有多少个周期需要使用rt寄存器的值</td></tr><tr><td>T_new_D</td><td>O</td><td>2</td><td>指令处在D级时还有多少个周期可以产生写入寄存器的新值</td></tr></tbody></table><h4 id=2分指令梳理控制信号>2.分指令梳理控制信号<a hidden class=anchor aria-hidden=true href=#2分指令梳理控制信号>#</a></h4><table><thead><tr><th>指令</th><th>取高电平的控制信号和ALUOp</th></tr></thead><tbody><tr><td>add</td><td>SelA3_D = 2&rsquo;b01, RegWrite, ALUOp = 3&rsquo;b000, NPCOp = 3&rsquo;b000;</td></tr><tr><td>sub</td><td>SelA3_D = 2&rsquo;b01, RegWrite, ALUOp = 3&rsquo;b001, NPCOp = 3&rsquo;b000;</td></tr><tr><td>ori</td><td>RegWrite,ALUSrc, SelALUB, ALUOp=3&rsquo;b010, NPCOp = 3&rsquo;b000;</td></tr><tr><td>lui</td><td>RegWrite,ALUSrc, SelALUB, ALUOp=3&rsquo;b011, NPCOp = 3&rsquo;b000;</td></tr><tr><td>lw</td><td>RegWrite, SelWout = 2&rsquo;b01, SelALUB, EXTOp, ALUOp=3&rsquo;b000, NPCOp = 3&rsquo;b000;</td></tr><tr><td>sw</td><td>MemWrite, SelALUB, EXTOp, ALUOp=3&rsquo;b000, NPCOp = 3&rsquo;b000;</td></tr><tr><td>beq</td><td>CMPOp = 3&rsquo;b000,EXTOp, NPCOp = 3&rsquo;b001, CMPOp = 3&rsquo;b000;</td></tr><tr><td>jal</td><td>RegWrite, SelA3_D = 2&rsquo;b10, NPCOp = 3&rsquo;b010;</td></tr><tr><td>jr</td><td>NPCOp = 3&rsquo;b11;</td></tr><tr><td>nop</td><td>相当于sll $0,$0,0，不需要进行特殊处理</td></tr></tbody></table><h4 id=3译码方式的改动>3.译码方式的改动<a hidden class=anchor aria-hidden=true href=#3译码方式的改动>#</a></h4><p>​ 在P4中，我才用使用reg类型变量记录指令识别的形式，在always块中每次都为代表所有信号的寄存器赋初值0，这样会导致pc一直自增下去，程序不断向后跑(虽然在上机时无影响)，在蒋老师的测评机上会出现多输出的情况。在P5中，使用wire类型进行指令的识别，当识别的指令为x时，所有指令对应的wire都是不定值x，导致MCU中输出的控制信号为x，使得pc停下来，可以正常在蒋老师的测评机上跑结果。</p><div class=highlight><div style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">1
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-verilog data-lang=verilog><span style=display:flex><span><span style=color:#8be9fd>wire</span> op_add <span style=color:#ff79c6>=</span> (D_opcode <span style=color:#ff79c6>==</span> R <span style=color:#ff79c6>&amp;&amp;</span> D_funct <span style=color:#ff79c6>==</span> add);
+</span></span></code></pre></td></tr></table></div></div><h3 id=2hcuhazard-control-unit>2.HCU(hazard control unit)<a hidden class=anchor aria-hidden=true href=#2hcuhazard-control-unit>#</a></h3><h4 id=1数据冒险中的供给需求模型>1.数据冒险中的供给需求模型<a hidden class=anchor aria-hidden=true href=#1数据冒险中的供给需求模型>#</a></h4><h5 id=1供给者与需求者分析>1.供给者与需求者分析<a hidden class=anchor aria-hidden=true href=#1供给者与需求者分析>#</a></h5><ul><li>需求者： 引用某个reg值的component</li><li>供给者：保存有reg新结果的流水线寄存器</li></ul><p>​ 我们假设指令前进到必须使用某一寄存器的值的流水阶段时，这个寄存器的值一定已经产生，并存储于后续某个流水线寄存器中，不管需要的值有没有计算出，都要进行转发，即暴力转发。</p><ul><li>供给者及其产生的数据</li></ul><table><thead><tr><th>流水级</th><th>产生数据</th><th>MUX&选择信号</th><th>MUX输出名</th></tr></thead><tbody><tr><td>E</td><td>E_E32,E_pc8</td><td>MUX_E_out&amp;SelEMOut</td><td>E_out</td></tr><tr><td>M</td><td>M_AO,M_pc8</td><td>MUX_M_out&amp;SelEMout</td><td>M_out</td></tr><tr><td>W</td><td>W_AO,W_RD,W_pc8</td><td>MUX_W_out&amp;SelWOut</td><td>W_out</td></tr></tbody></table><ul><li>需求者及其产生的数据</li></ul><p>​ <strong>注：表格中选择数据表示是哪一个流水段产生的结果，实际数据来自流水段寄存器的转发而不是流水段中的部件</strong></p><table><thead><tr><th>接收端口</th><th>选择数据</th><th>HMUX&选择信号</th><th>MUX输出名</th></tr></thead><tbody><tr><td>CMP_D1</td><td>D_V1,E_out,M_out</td><td>HMUX_CMP_D1&amp;FwdCPMD1</td><td>D_V1_f(orward)</td></tr><tr><td>CMP_D2</td><td>D_V2,E_out,M_out</td><td>HMUX_CMP_D2&amp;FwdCPMD2</td><td>D_V2_f</td></tr><tr><td>ALU_A</td><td>D_V1,E_out,M_out</td><td>HMUX_ALU_A&amp;FwdALUA</td><td>E_V1_f</td></tr><tr><td>ALU_B</td><td>D_V2,E_out,M_out</td><td>HMUX_ALU_B&amp;FwdALUB</td><td>E_V2_f</td></tr><tr><td>DM_WD</td><td>M_V2,W_out</td><td>HMUX_DM&amp;FwdDM</td><td>M_V1_f</td></tr><tr><td>NPC_ra</td><td>D_V1,E_out,M_out</td><td>HMUX_CMP_D1&amp;FwdCPMD1</td><td>D_V1_f</td></tr></tbody></table><hr><p>​ <strong>注：对于jr跳转指令，跳转到rs寄存器的值，故可以与CMP_D1共用同一个转发多路选择器产生的结果，但是我选择单独实现</strong></p><h5 id=2tuse-tnew>2.T<sub>use</sub> /T<sub>new</sub><a hidden class=anchor aria-hidden=true href=#2tuse-tnew>#</a></h5><p>数据冒险可以转化为需求与供给的匹配问题：</p><p>T<sub>use</sub>：数据到了D级后还需要多少个周期要使用寄存器的值</p><p>T<sub>new</sub>: 位于E级及其后各流水线的指令，再经过多少个时钟周期能够产生要写入寄存器的结果。</p><ul><li><p>T<sub>use</sub> &lt; T<sub>new</sub> : 暂停install</p></li><li><p>T<sub>use</sub> >=T<sub>new</sub>: 转发forward，<strong>注意：我们进行转发从来都是从流水线寄存器进行转发而不是从部件产生结果进行转发，故从部件产生结果到存储到流水线寄存器可以进行转发还需要一个时钟周期</strong></p></li><li><p>T<sub>use</sub>固定不变，可以从MCU译码后直接传入HCU</p></li><li><p>采取的集中式译码中，T<sub>new</sub>随流水递减，在每一级流水段中传给HCU</p><ul><li>T<sub>new-E</sub> = max (T<sub>new-D</sub> - 1 , 0)</li><li>T<sub>new-M</sub> = max (T<sub>new-E</sub> - 1 , 0)</li><li>在当前指令集下 T<sub>new-W</sub> = 0</li></ul></li></ul><h4 id=2冒险分析>2.冒险分析<a hidden class=anchor aria-hidden=true href=#2冒险分析>#</a></h4><h5 id=1对指令构建tuse-tnew表>1.对指令构建T<sub>use</sub>-T<sub>new</sub>表<a hidden class=anchor aria-hidden=true href=#1对指令构建tuse-tnew表>#</a></h5><p><img alt=image-20231122234113510 loading=lazy src=/img/image-20231122234113510.png></p><ul><li>add/sub/ori/lui : 在D阶段译码之后在E级ALU使用寄存器rs和(rt)的值，还需一个时钟周期存入E级流水线寄存器</li><li>lw : 只用到rs寄存器中的值用来计算取数地址，经过两个周期在DM处取出结果存入W级寄存器</li><li>sw : 只涉及到存入DM，不产生新的数据</li><li>beq : 在D级进行操作数相等比较</li><li>jal : 将PC+8存入ra寄存器</li><li>jr : 在D级使用rs寄存器中的值作为跳转pc</li></ul><p><strong>注意：！！！对于不需要使用到该寄存器的指令，T_rs_use / T_rt_use需要置为3，最初我的错误是不进行处理，即T_rs_use = T_rt_use = 0，这样会导致很多不必要的暂停的发生，具体在测评中会表现为TLE！因为T_rs_use和T_rt_use的范围为0-2，将T_rs_use,T_rt_use标记为3可以规避掉所有的暂停情况！</strong></p><h5 id=2stallforward控制列表>2.stall/forward控制列表<a hidden class=anchor aria-hidden=true href=#2stallforward控制列表>#</a></h5><p><img alt=image-20231116121616972 loading=lazy src=/img/image-20231116121616972.png></p><p>​ 用当前指令用到的寄存器的对应的T<sub>use</sub>与该寄存器新值当前所在流水段对应部件的T<sub>new</sub>进行比对，如果</p><ul><li>T<sub>use</sub> >= T<sub>new</sub>，则通过转发解决</li><li>T<sub>use</sub> &lt; T<sub>new</sub> ，则只能进行暂停</li></ul><p><strong>从上表可以归结出需要进行暂停的四种情况</strong></p><ul><li>E_T<sub>new</sub> = 2,T<sub>use</sub>=0</li><li>E_T<sub>new</sub> = 2,T<sub>use</sub> = 1</li><li>E_T<sub>new</sub> = 1,T<sub>use</sub> = 0</li><li>M_T<sub>new</sub> = 1,T<sub>use</sub> = 0</li></ul><p><strong>暂停：冻结PC计数器，冻结D级寄存器，清空E级寄存器</strong></p><h5 id=3基础指令的数据通路各个流水段需要传递的信号>3.基础指令的数据通路/各个流水段需要传递的信号<a hidden class=anchor aria-hidden=true href=#3基础指令的数据通路各个流水段需要传递的信号>#</a></h5><p><strong>列表如下所示：</strong></p><p><img alt=image-20231116201954504 loading=lazy src=/img/image-20231116201954504.png></p><h5 id=4hcu设计>4.HCU设计<a hidden class=anchor aria-hidden=true href=#4hcu设计>#</a></h5><h6 id=1端口定义列表-1>1.端口定义列表<a hidden class=anchor aria-hidden=true href=#1端口定义列表-1>#</a></h6><table><thead><tr><th>输入信号</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>D_A1</td><td>I</td><td>5</td><td>D级A1输入</td></tr><tr><td>D_A2</td><td>I</td><td>5</td><td>D级A2输入</td></tr><tr><td>E_A1</td><td>I</td><td>5</td><td>E级A1输入</td></tr><tr><td>E_A2</td><td>I</td><td>5</td><td>E级A2输入</td></tr><tr><td>E_A3</td><td>I</td><td>5</td><td>E级A3输入</td></tr><tr><td>M_A2</td><td>I</td><td>5</td><td>M级A2输入</td></tr><tr><td>M_A3</td><td>I</td><td>5</td><td>M级A3输入</td></tr><tr><td>W_A3</td><td>I</td><td>5</td><td>W级A3输入</td></tr><tr><td>RegWrite_E</td><td>I</td><td>1</td><td>E级保存的GRF写入使能信号</td></tr><tr><td>RegWrite_M</td><td>I</td><td>1</td><td>M级保存的GRF写入使能信号</td></tr><tr><td>RegWrite_W</td><td>I</td><td>1</td><td>W级保存的GRF写入使能信号</td></tr><tr><td>T_rs_use</td><td>I</td><td>2</td><td>D级中MCU输出的T_rs_use_D信号</td></tr><tr><td>T_rt_use</td><td>I</td><td>2</td><td>D级中MCU输出的T_rt_use_D信号</td></tr><tr><td>T_new_E</td><td>I</td><td>2</td><td>E级中T_new_E输入</td></tr><tr><td>T_new_M</td><td>I</td><td>2</td><td>M级中T_new_M输入</td></tr><tr><td>T_new_W</td><td>I</td><td>2</td><td>W级中T_new_W输入</td></tr><tr><td><strong>输出信号</strong></td><td><strong>位宽</strong></td><td><strong>作用级</strong></td><td><strong>描述</strong></td></tr><tr><td>FwdCMPD1</td><td>2</td><td>D</td><td>对HMUX_CMP_D1输出进行选择</td></tr><tr><td>FwdCMPD2</td><td>2</td><td>D</td><td>对HMUX_CMP_D2输出进行选择</td></tr><tr><td>FwdALUA</td><td>2</td><td>E</td><td>对HMUX_ALU_A输出进行选择</td></tr><tr><td>FwdALUB</td><td>2</td><td>E</td><td>对HMUX_ALU_B输出进行选择</td></tr><tr><td>FwdDM</td><td>1</td><td>M</td><td>对HMUX_DM的输出进行选择</td></tr><tr><td>stall</td><td>1</td><td>D,F,M</td><td>暂停信号</td></tr></tbody></table><p><strong>注：暂停机制：冻结PC,冻结D级，清空E级，即stall信号作用于IFU,D_REG,E_REG</strong></p><h6 id=2控制转发暂停的内部逻辑>2.控制转发/暂停的内部逻辑<a hidden class=anchor aria-hidden=true href=#2控制转发暂停的内部逻辑>#</a></h6><ol><li>暂停的内部逻辑</li></ol><p>​ 经过前面的分析，可知暂停信号stall的产生一共有八种情况，rs,rt各四种，最后或在一起即可。记号stall_rs0_e1表示暂停中T_rs_use=0&&amp;T_new_E = 1的情况，对应的表达式为:</p><div class=highlight><div style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">1
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-verilog data-lang=verilog><span style=display:flex><span>stall_rs0_e1 <span style=color:#ff79c6>=</span> (T_rs_use <span style=color:#ff79c6>==</span> <span style=color:#bd93f9>2</span><span style=color:#bd93f9>&#39;b00</span>)<span style=color:#ff79c6>&amp;&amp;</span>(T_new_E <span style=color:#ff79c6>=</span> <span style=color:#bd93f9>2</span><span style=color:#bd93f9>&#39;b01</span>)<span style=color:#ff79c6>&amp;&amp;</span>(D_A1 <span style=color:#ff79c6>==</span> E_A3)<span style=color:#ff79c6>&amp;&amp;</span>(D_A1 <span style=color:#ff79c6>!=</span> <span style=color:#bd93f9>5</span><span style=color:#bd93f9>&#39;b0</span>)<span style=color:#ff79c6>&amp;&amp;</span>(RegWrite_E)
+</span></span></code></pre></td></tr></table></div></div><p>​ 与逻辑表达式中前两项为对时间状态的判断，后三项为对寄存器状态的判断，即判断此时E级能写入且写入的寄存器为D级的rs且不是0寄存器。</p><ol start=2><li>转发的内部逻辑</li></ol><p>​ <strong>注：在流水段中，较先进入流水的指令在流水段较深的位置，我们进行转发只会对前序指令的运算结果进行转发，故会出现靠后流水段的转发选择信号较少，例如在M级对DM部件的转发 只会涉及到一个流水线寄存器输出的信号W_out，而在E级对ALU_A的转发信号有两个信号来自流水线寄存器，M_out,W_out.</strong></p><p>​ 转发逻辑涉及到优先级的判断，即对最新产生的结果进行转发，可以通过三目运算符实现，将优先级更高的结果(值更新的结果)放在三目运算符判断的前面并为选择信号编码，我采用的编码方式为优先级从低到高编码增加。<strong>判断能进行转发的关键条件为T_new=0</strong></p><p>例如：</p><div class=highlight><div style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">1
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">2
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">3
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-verilog data-lang=verilog><span style=display:flex><span><span style=color:#ff79c6>assign</span> FwdCMPD1 <span style=color:#ff79c6>=</span> (T_new_E <span style=color:#ff79c6>==</span> <span style=color:#bd93f9>2</span><span style=color:#bd93f9>&#39;b00</span>)<span style=color:#ff79c6>&amp;&amp;</span>(E_A3 <span style=color:#ff79c6>==</span> D_A1)<span style=color:#ff79c6>&amp;&amp;</span>(D_A1 <span style=color:#ff79c6>!=</span> <span style=color:#bd93f9>5</span><span style=color:#bd93f9>&#39;b0</span>)<span style=color:#ff79c6>&amp;&amp;</span>(RegWrite_E) <span style=color:#ff79c6>?</span> <span style=color:#bd93f9>2</span><span style=color:#bd93f9>&#39;b10</span> <span style=color:#ff79c6>:</span>
+</span></span><span style=display:flex><span>						(T_new_M <span style=color:#ff79c6>==</span> <span style=color:#bd93f9>2</span><span style=color:#bd93f9>&#39;b00</span>)<span style=color:#ff79c6>&amp;&amp;</span>(M_A3 <span style=color:#ff79c6>==</span> D_A1)<span style=color:#ff79c6>&amp;&amp;</span>(D_A1 <span style=color:#ff79c6>!=</span> <span style=color:#bd93f9>5</span><span style=color:#bd93f9>&#39;b0</span>)<span style=color:#ff79c6>&amp;&amp;</span>(RegWrite_M) <span style=color:#ff79c6>?</span> <span style=color:#bd93f9>2</span><span style=color:#bd93f9>&#39;b01</span> <span style=color:#ff79c6>:</span>
+</span></span><span style=display:flex><span>						<span style=color:#bd93f9>2</span><span style=color:#bd93f9>&#39;b00</span>;
+</span></span></code></pre></td></tr></table></div></div><h3 id=3alu>3.ALU<a hidden class=anchor aria-hidden=true href=#3alu>#</a></h3><h4 id=1端口定义列表-2>1.端口定义列表<a hidden class=anchor aria-hidden=true href=#1端口定义列表-2>#</a></h4><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>src_A</td><td>I</td><td>32</td><td>操作数1</td></tr><tr><td>src_B</td><td>I</td><td>32</td><td>操作数2</td></tr><tr><td>ALUOp</td><td>I</td><td>3</td><td>运算类型</td></tr><tr><td>AO</td><td>O</td><td>32</td><td>运算结果</td></tr></tbody></table><h4 id=2aluop编码与运算选择>2.ALUOp编码与运算选择<a hidden class=anchor aria-hidden=true href=#2aluop编码与运算选择>#</a></h4><table><thead><tr><th>ALU运算</th><th>ALUOp编码</th></tr></thead><tbody><tr><td>+</td><td>0000</td></tr><tr><td>-</td><td>0001</td></tr><tr><td>|</td><td>0010</td></tr><tr><td>load to higher half(lui)</td><td>0011</td></tr><tr><td>&#171;</td><td>0100</td></tr><tr><td>signed compare (slt)</td><td>0101</td></tr><tr><td>unsigned compare(sltu)</td><td>0110</td></tr></tbody></table><p>​ 将beq指令在ALU中判断两个操作数是否相等的操作移动到D级模块CMP中，使得跳转指令在D级就可以完成判断，流水线只会顺序多执行一条指令。</p><h3 id=4ext>4.EXT<a hidden class=anchor aria-hidden=true href=#4ext>#</a></h3><h4 id=端口定义列表>端口定义列表<a hidden class=anchor aria-hidden=true href=#端口定义列表>#</a></h4><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>imm</td><td>I</td><td>16</td><td>D级16位立即数</td></tr><tr><td>EXTOp</td><td>I</td><td>1</td><td>选择进行符号扩展/零扩展</td></tr><tr><td>imm_32</td><td>I</td><td>32</td><td>位扩展结果</td></tr></tbody></table><h3 id=5grf>5.GRF<a hidden class=anchor aria-hidden=true href=#5grf>#</a></h3><h4 id=1端口定义列表-3>1.端口定义列表<a hidden class=anchor aria-hidden=true href=#1端口定义列表-3>#</a></h4><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>clk</td><td>I</td><td>1</td><td>时钟信号</td></tr><tr><td>reset</td><td>I</td><td>1</td><td>同步复位信号</td></tr><tr><td>rs</td><td>I</td><td>5</td><td>rs寄存器</td></tr><tr><td>rt</td><td>I</td><td>5</td><td>rt寄存器</td></tr><tr><td>rd</td><td>I</td><td>5</td><td>rd寄存器</td></tr><tr><td>pc</td><td>I</td><td>32</td><td>指令执行地址</td></tr><tr><td>datawrite</td><td>I</td><td>32</td><td>写入数据选择</td></tr><tr><td>RegWrite</td><td>I</td><td>1</td><td>写入使能</td></tr><tr><td>dataread1</td><td>O</td><td>32</td><td>读rs寄存器</td></tr><tr><td>dataread2</td><td>O</td><td>32</td><td>读rt寄存器</td></tr></tbody></table><p><strong>注意：这里的RegWrite,datawirte,A3(rd),pc信号均来自W级</strong></p><h4 id=2grf内部转发>2.GRF内部转发<a hidden class=anchor aria-hidden=true href=#2grf内部转发>#</a></h4><p>​ 设计GRF内部转发逻辑：GRF既是D级的一个部件又是W级之后的流水线寄存器。当W级写GRF，D级读GRF时，如果读取寄存器与写入寄存器为同一寄存器时不进行转发，新值虽然被写入GRF但流入E级的值依然为旧值。</p><p><strong>判断条件：当写入信号RegWrite有效且A1==A3或A2==A3时，将写入值作为对应输出值</strong></p><p>判断逻辑如下:</p><div class=highlight><div style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">1
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">2
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-verilog data-lang=verilog><span style=display:flex><span><span style=color:#6272a4>//forward
+</span></span></span><span style=display:flex><span><span style=color:#ff79c6>assign</span> dataread1 <span style=color:#ff79c6>=</span> (RegWrite <span style=color:#ff79c6>&amp;&amp;</span> rs <span style=color:#ff79c6>==</span> rd <span style=color:#ff79c6>&amp;&amp;</span> rd <span style=color:#ff79c6>!=</span> <span style=color:#bd93f9>0</span>) <span style=color:#ff79c6>?</span> datawrite <span style=color:#ff79c6>:</span> grf[rs];
+</span></span></code></pre></td></tr></table></div></div><h3 id=6ifu>6.IFU<a hidden class=anchor aria-hidden=true href=#6ifu>#</a></h3><h4 id=端口定义列表-1>端口定义列表<a hidden class=anchor aria-hidden=true href=#端口定义列表-1>#</a></h4><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>clk</td><td>I</td><td>1</td><td>时钟信号</td></tr><tr><td>reset</td><td>I</td><td>1</td><td>同步复位信号</td></tr><tr><td>en</td><td>I</td><td>1</td><td>使能信号(~stall)</td></tr><tr><td>npc</td><td>I</td><td>32</td><td>下一指令地址</td></tr><tr><td>pc</td><td>O</td><td>32</td><td>F级当前地址</td></tr><tr><td>pc8</td><td>O</td><td>32</td><td>输出PC+8，随流水段传递(jal考虑延迟槽)</td></tr><tr><td>instr</td><td>O</td><td>32</td><td>取出的指令</td></tr></tbody></table><h3 id=7npc>7.NPC<a hidden class=anchor aria-hidden=true href=#7npc>#</a></h3><h4 id=1端口定义列表-4>1.端口定义列表<a hidden class=anchor aria-hidden=true href=#1端口定义列表-4>#</a></h4><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>D_pc</td><td>I</td><td>32</td><td>D级PC</td></tr><tr><td>F_pc</td><td>I</td><td>32</td><td>F级PC</td></tr><tr><td>b_result</td><td>I</td><td>1</td><td>D级CMP模块判断结果</td></tr><tr><td>b_offset</td><td>I</td><td>32</td><td>B类指令的跳转地址</td></tr><tr><td>j_address</td><td>I</td><td>26</td><td>J类指令跳转地址</td></tr><tr><td>reg_address</td><td>I</td><td>32</td><td>跳转到寄存器中的地址(jr)</td></tr><tr><td>NPCOp</td><td>I</td><td>3</td><td>地址选择信号</td></tr><tr><td>npc</td><td>O</td><td>32</td><td>程序下一条指令地址</td></tr></tbody></table><h4 id=2npcop编码与地址选择>2.NPCOp编码与地址选择<a hidden class=anchor aria-hidden=true href=#2npcop编码与地址选择>#</a></h4><table><thead><tr><th>NPCOp编码</th><th>选择跳转地址</th></tr></thead><tbody><tr><td>000</td><td>F_pc + 4</td></tr><tr><td>001(B) && b_result</td><td>D_pc + 4 + (b_offset &#171; 2&rsquo;b10)</td></tr><tr><td>010(jal)</td><td>{(D_pc + 4)[31:28],j_address,2&rsquo;b00}</td></tr><tr><td>011(jr)</td><td>reg_address</td></tr></tbody></table><p><strong>注：NPC是横跨D级和E级的模块，如果是beq或jal等指令，则需要在D_pc基础上进行操作，否则为F_pc+4</strong></p><h3 id=8cmp>8.CMP<a hidden class=anchor aria-hidden=true href=#8cmp>#</a></h3><h4 id=1端口定义列表-5>1.端口定义列表<a hidden class=anchor aria-hidden=true href=#1端口定义列表-5>#</a></h4><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>D_V1</td><td>I</td><td>32</td><td>GRF中读出的rs寄存器的值</td></tr><tr><td>D_V2</td><td>I</td><td>32</td><td>GRF中读出的rt寄存器的值</td></tr><tr><td>CMPOp</td><td>I</td><td>3</td><td>选择比较类型</td></tr><tr><td>b_result</td><td>O</td><td>1</td><td>是否满足B类跳转指令的跳转条件</td></tr></tbody></table><h4 id=2cmpop编码与对应指令>2.CMPOp编码与对应指令<a hidden class=anchor aria-hidden=true href=#2cmpop编码与对应指令>#</a></h4><p>当前只实现beq，该信号的设置更大的意义在于其可扩展性，便于课上添加指令</p><table><thead><tr><th>CMPOp编码</th><th>对应指令</th></tr></thead><tbody><tr><td>000</td><td>beq</td></tr><tr><td>&mldr;</td><td>&mldr;</td></tr></tbody></table><h3 id=9dm>9.DM<a hidden class=anchor aria-hidden=true href=#9dm>#</a></h3><h4 id=1端口定义列表-6>1.端口定义列表<a hidden class=anchor aria-hidden=true href=#1端口定义列表-6>#</a></h4><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>clk</td><td>I</td><td>1</td><td>时钟信号</td></tr><tr><td>reset</td><td>I</td><td>1</td><td>同步复位信号</td></tr><tr><td>MemWrite</td><td>I</td><td>1</td><td>写入使能</td></tr><tr><td>address</td><td>I</td><td>32</td><td>写入/读取数据的地址</td></tr><tr><td>pc</td><td>I</td><td>32</td><td>当前指令地址</td></tr><tr><td>DMOp</td><td>I</td><td>3</td><td>执行操作</td></tr></tbody></table><h4 id=2dmop编码与对应指令>2.DMOp编码与对应指令<a hidden class=anchor aria-hidden=true href=#2dmop编码与对应指令>#</a></h4><p>​ 该信号的设置更大的意义在于其可扩展性，便于课上添加指令</p><table><thead><tr><th>DMOp编码</th><th>对应指令</th></tr></thead><tbody><tr><td>000</td><td>sw</td></tr><tr><td>100</td><td>lw</td></tr><tr><td>&mldr;</td><td>&mldr;</td></tr></tbody></table><h3 id=10mux>10.MUX<a hidden class=anchor aria-hidden=true href=#10mux>#</a></h3><h4 id=1功能多路选择器>1.功能多路选择器<a hidden class=anchor aria-hidden=true href=#1功能多路选择器>#</a></h4><h5 id=1mux_a3-d级写入寄存器选择>1.MUX_A3 D级写入寄存器选择<a hidden class=anchor aria-hidden=true href=#1mux_a3-d级写入寄存器选择>#</a></h5><h6 id=端口定义列表-2>端口定义列表<a hidden class=anchor aria-hidden=true href=#端口定义列表-2>#</a></h6><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>D_instr_rs</td><td>I</td><td>5</td><td>instr中rs段</td></tr><tr><td>D_instr_rt</td><td>I</td><td>5</td><td>instr中rt段</td></tr><tr><td>SelA3_D</td><td>I</td><td>2</td><td>rd选择信号</td></tr><tr><td>D_A3</td><td>O</td><td>5</td><td>写入寄存器A3</td></tr></tbody></table><h6 id=选择信号与结果>选择信号与结果<a hidden class=anchor aria-hidden=true href=#选择信号与结果>#</a></h6><table><thead><tr><th>SelA3_D</th><th>D_A3</th></tr></thead><tbody><tr><td>2&rsquo;b10</td><td>31</td></tr><tr><td>2&rsquo;b01</td><td>rd</td></tr><tr><td>2&rsquo;b00</td><td>rt</td></tr></tbody></table><h5 id=2mux_alu_b-alub端口选择>2.MUX_ALU_B ALUB端口选择<a hidden class=anchor aria-hidden=true href=#2mux_alu_b-alub端口选择>#</a></h5><h6 id=端口定义列表-3>端口定义列表<a hidden class=anchor aria-hidden=true href=#端口定义列表-3>#</a></h6><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>E_V2_f</td><td>I</td><td>32</td><td>转发后的V2</td></tr><tr><td>E_E32</td><td>I</td><td>32</td><td>32位立即数</td></tr><tr><td>SelALUB_E</td><td>I</td><td>1</td><td>选择信号</td></tr><tr><td>E_ALU_B</td><td>O</td><td>32</td><td>输出到ALUB端口的结果</td></tr></tbody></table><h6 id=选择信号与结果-1>选择信号与结果<a hidden class=anchor aria-hidden=true href=#选择信号与结果-1>#</a></h6><table><thead><tr><th>SelALUB_E</th><th>E_ALU_B</th></tr></thead><tbody><tr><td>1&rsquo;b1</td><td>E_E32</td></tr><tr><td>1&rsquo;b0</td><td>E_V2_f</td></tr></tbody></table><h5 id=3mux_e_out--选择e级转发数据>3.MUX_E_out 选择E级转发数据<a hidden class=anchor aria-hidden=true href=#3mux_e_out--选择e级转发数据>#</a></h5><h6 id=端口定义列表-4>端口定义列表<a hidden class=anchor aria-hidden=true href=#端口定义列表-4>#</a></h6><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>E_E32</td><td>I</td><td>32</td><td>32位立即数</td></tr><tr><td>E_pc8</td><td>I</td><td>32</td><td>流水PC8(jal)</td></tr><tr><td>SelEMout_E</td><td>I</td><td>1</td><td>选择信号</td></tr><tr><td>E_out</td><td>O</td><td>32</td><td>E级转发数据</td></tr></tbody></table><h6 id=选择信号与结果-2>选择信号与结果<a hidden class=anchor aria-hidden=true href=#选择信号与结果-2>#</a></h6><table><thead><tr><th>SelEMout_E</th><th>E_out</th></tr></thead><tbody><tr><td>1&rsquo;b1</td><td>E_pc8</td></tr><tr><td>1&rsquo;b0</td><td>E_E32</td></tr></tbody></table><h5 id=4mux_m_out-选择m级转发数据>4.MUX_M_out 选择M级转发数据<a hidden class=anchor aria-hidden=true href=#4mux_m_out-选择m级转发数据>#</a></h5><h6 id=端口定义列表-5>端口定义列表<a hidden class=anchor aria-hidden=true href=#端口定义列表-5>#</a></h6><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>M_AO</td><td>I</td><td>32</td><td>M级ALU计算结果</td></tr><tr><td>M_pc8</td><td>I</td><td>32</td><td>流水PC8(jal)</td></tr><tr><td>SelEMout_M</td><td>I</td><td>1</td><td>选择信号</td></tr><tr><td>M_out</td><td>O</td><td>32</td><td>M级转发数据</td></tr></tbody></table><h6 id=选择信号与结果-3>选择信号与结果<a hidden class=anchor aria-hidden=true href=#选择信号与结果-3>#</a></h6><table><thead><tr><th>SelEMout_M</th><th>M_out</th></tr></thead><tbody><tr><td>1&rsquo;b1</td><td>M_pc8</td></tr><tr><td>1&rsquo;b0</td><td>M_AO</td></tr></tbody></table><h5 id=5mux_w_out-选择w级转发数据>5.MUX_W_out 选择W级转发数据<a hidden class=anchor aria-hidden=true href=#5mux_w_out-选择w级转发数据>#</a></h5><h6 id=端口定义列表-6>端口定义列表<a hidden class=anchor aria-hidden=true href=#端口定义列表-6>#</a></h6><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>W_AO</td><td>I</td><td>32</td><td>W级ALU计算结果</td></tr><tr><td>W_DR</td><td>I</td><td>32</td><td>W级DM中读取出的数据</td></tr><tr><td>W_pc8</td><td>I</td><td>32</td><td>W级流水PC8(jal)</td></tr><tr><td>SelWout_W</td><td>I</td><td>2</td><td>选择信号</td></tr><tr><td>W_out</td><td>O</td><td>32</td><td>W级转发数据/GRF写入数据</td></tr></tbody></table><h6 id=选择信号与结果-4>选择信号与结果<a hidden class=anchor aria-hidden=true href=#选择信号与结果-4>#</a></h6><table><thead><tr><th>SelWout_W</th><th>W_out</th></tr></thead><tbody><tr><td>2&rsquo;b10</td><td>W_pc8</td></tr><tr><td>2&rsquo;b01</td><td>W_DR</td></tr><tr><td>2&rsquo;b00</td><td>W_AO</td></tr></tbody></table><h4 id=2转发多路选择器>2.转发多路选择器<a hidden class=anchor aria-hidden=true href=#2转发多路选择器>#</a></h4><h5 id=1hmux_cmp_d1-cmp模块rs寄存器值转发>1.HMUX_CMP_D1 CMP模块rs寄存器值转发<a hidden class=anchor aria-hidden=true href=#1hmux_cmp_d1-cmp模块rs寄存器值转发>#</a></h5><h6 id=端口定义列表-7>端口定义列表<a hidden class=anchor aria-hidden=true href=#端口定义列表-7>#</a></h6><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>GRF_RD1</td><td>I</td><td>32</td><td>GRF中读取出的rs值</td></tr><tr><td>M_out</td><td>I</td><td>32</td><td>M级转发数据</td></tr><tr><td>E_out</td><td>I</td><td>32</td><td>E级转发数据</td></tr><tr><td>FwdCMPD1</td><td>I</td><td>2</td><td>选择信号</td></tr><tr><td>D_V1_f</td><td>O</td><td>32</td><td>转发后的rs寄存器值</td></tr></tbody></table><p>​ <strong>注：转发寄存器中有数据优先级的问题，越新产生的数据优先级越高，考虑到GRF中内部转发的逻辑，事实上GRF_RD1也代表着潜在的W级转发数据，但是仍然不破坏优先级关系E>M>W</strong></p><h6 id=选择信号与结果-5>选择信号与结果<a hidden class=anchor aria-hidden=true href=#选择信号与结果-5>#</a></h6><table><thead><tr><th>FwdCMPD1</th><th>D_V1_f</th></tr></thead><tbody><tr><td>2&rsquo;b10</td><td>E_out</td></tr><tr><td>2&rsquo;b01</td><td>M_out</td></tr><tr><td>2&rsquo;b00</td><td>GRF_RD1</td></tr></tbody></table><h5 id=2hmux_cmp_d2-cmp模块rt寄存器值转发>2.HMUX_CMP_D2 CMP模块rt寄存器值转发<a hidden class=anchor aria-hidden=true href=#2hmux_cmp_d2-cmp模块rt寄存器值转发>#</a></h5><h6 id=端口定义列表-8>端口定义列表<a hidden class=anchor aria-hidden=true href=#端口定义列表-8>#</a></h6><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>GRF_RD2</td><td>I</td><td>32</td><td>GRF中读取出的rt值</td></tr><tr><td>M_out</td><td>I</td><td>32</td><td>M级转发数据</td></tr><tr><td>E_out</td><td>I</td><td>32</td><td>E级转发数据</td></tr><tr><td>FwdCMPD2</td><td>I</td><td>2</td><td>选择信号</td></tr><tr><td>D_V2_f</td><td>O</td><td>32</td><td>转发后的rt寄存器值</td></tr></tbody></table><h6 id=选择信号与结果-6>选择信号与结果<a hidden class=anchor aria-hidden=true href=#选择信号与结果-6>#</a></h6><table><thead><tr><th>FwdCMPD2</th><th>D_V1_f</th></tr></thead><tbody><tr><td>2&rsquo;b10</td><td>E_out</td></tr><tr><td>2&rsquo;b01</td><td>M_out</td></tr><tr><td>2&rsquo;b00</td><td>GRF_RD2</td></tr></tbody></table><h5 id=3hmux_alu_a-alu模块v1值转发>3.HMUX_ALU_A ALU模块V1值转发<a hidden class=anchor aria-hidden=true href=#3hmux_alu_a-alu模块v1值转发>#</a></h5><h6 id=端口定义列表-9>端口定义列表<a hidden class=anchor aria-hidden=true href=#端口定义列表-9>#</a></h6><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>E_V1</td><td>I</td><td>32</td><td>GRF中读取出的rs值</td></tr><tr><td>M_out</td><td>I</td><td>32</td><td>M级转发数据</td></tr><tr><td>W_out</td><td>I</td><td>32</td><td>W级转发数据</td></tr><tr><td>FwdALUA</td><td>I</td><td>2</td><td>选择信号</td></tr><tr><td>E_V1_f</td><td>O</td><td>32</td><td>转发后的V1值</td></tr></tbody></table><h6 id=选择信号与结果-7>选择信号与结果<a hidden class=anchor aria-hidden=true href=#选择信号与结果-7>#</a></h6><table><thead><tr><th>FwdALUA</th><th>E_V1_f</th></tr></thead><tbody><tr><td>2&rsquo;b10</td><td>M_out</td></tr><tr><td>2&rsquo;b01</td><td>W_out</td></tr><tr><td>2&rsquo;b00</td><td>E_V1</td></tr></tbody></table><h5 id=4hmux_alu_b-alu模块v2值转发>4.HMUX_ALU_B ALU模块V2值转发<a hidden class=anchor aria-hidden=true href=#4hmux_alu_b-alu模块v2值转发>#</a></h5><h6 id=端口定义列表-10>端口定义列表<a hidden class=anchor aria-hidden=true href=#端口定义列表-10>#</a></h6><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>E_V2</td><td>I</td><td>32</td><td>GRF中读取出的rt值</td></tr><tr><td>M_out</td><td>I</td><td>32</td><td>M级转发数据</td></tr><tr><td>W_out</td><td>I</td><td>32</td><td>W级转发数据</td></tr><tr><td>FwdALUB</td><td>I</td><td>2</td><td>选择信号</td></tr><tr><td>E_V2_f</td><td>O</td><td>32</td><td>转发后的V2值</td></tr></tbody></table><h6 id=选择信号与结果-8>选择信号与结果<a hidden class=anchor aria-hidden=true href=#选择信号与结果-8>#</a></h6><table><thead><tr><th>FwdALUB</th><th>E_V2_f</th></tr></thead><tbody><tr><td>2&rsquo;b10</td><td>M_out</td></tr><tr><td>2&rsquo;b01</td><td>W_out</td></tr><tr><td>2&rsquo;b00</td><td>E_V2</td></tr></tbody></table><h5 id=5hmux_dm-dm写入数据转发>5.HMUX_DM DM写入数据转发<a hidden class=anchor aria-hidden=true href=#5hmux_dm-dm写入数据转发>#</a></h5><h6 id=端口定义列表-11>端口定义列表<a hidden class=anchor aria-hidden=true href=#端口定义列表-11>#</a></h6><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>M_V2</td><td>I</td><td>32</td><td>M级V2</td></tr><tr><td>W_out</td><td>I</td><td>32</td><td>W级转发数据</td></tr><tr><td>FwdDM</td><td>I</td><td>1</td><td>选择信号</td></tr><tr><td>M_V1_f</td><td>O</td><td>32</td><td>DM写入数据</td></tr></tbody></table><h6 id=选择信号与结果-9>选择信号与结果<a hidden class=anchor aria-hidden=true href=#选择信号与结果-9>#</a></h6><table><thead><tr><th>FwdDM</th><th>M_V1_f</th></tr></thead><tbody><tr><td>1&rsquo;b1</td><td>W_out</td></tr><tr><td>1&rsquo;b0</td><td>M_V2</td></tr></tbody></table><h5 id=6hmux_npc-npc模块跳转寄存器值转发>6.HMUX_NPC NPC模块跳转寄存器值转发<a hidden class=anchor aria-hidden=true href=#6hmux_npc-npc模块跳转寄存器值转发>#</a></h5><h6 id=端口定义列表-12>端口定义列表<a hidden class=anchor aria-hidden=true href=#端口定义列表-12>#</a></h6><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>GRF_RD1</td><td>I</td><td>32</td><td>GRF中读取出的rs值</td></tr><tr><td>M_out</td><td>I</td><td>32</td><td>M级转发数据</td></tr><tr><td>E_out</td><td>I</td><td>32</td><td>E级转发数据</td></tr><tr><td>FwdCMPD1</td><td>I</td><td>2</td><td>选择信号</td></tr><tr><td>D_RA_f</td><td>O</td><td>32</td><td>转发后的rs寄存器值</td></tr></tbody></table><p>​ <strong>注：其实可以共用CMPD1的转发数据</strong></p><h6 id=选择信号与结果-10>选择信号与结果<a hidden class=anchor aria-hidden=true href=#选择信号与结果-10>#</a></h6><table><thead><tr><th>FwdCMPD1</th><th>D_RA_f</th></tr></thead><tbody><tr><td>2&rsquo;b10</td><td>E_out</td></tr><tr><td>2&rsquo;b01</td><td>M_out</td></tr><tr><td>2&rsquo;b00</td><td>GRF_RD1</td></tr></tbody></table><h3 id=11流水线寄存器>11.流水线寄存器<a hidden class=anchor aria-hidden=true href=#11流水线寄存器>#</a></h3><h4 id=1d_reg>1.D_REG<a hidden class=anchor aria-hidden=true href=#1d_reg>#</a></h4><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>clk</td><td>I</td><td>1</td><td>时钟信号</td></tr><tr><td>reset</td><td>I</td><td>1</td><td>同步复位信号</td></tr><tr><td>en</td><td>I</td><td>1</td><td>~stall（冻结D级）</td></tr><tr><td>F_instr</td><td>I</td><td>32</td><td>F级取指令</td></tr><tr><td>F_pc</td><td>I</td><td>32</td><td>F级PC</td></tr><tr><td>F_pc8</td><td>I</td><td>32</td><td>F级PC+8(jal)</td></tr><tr><td>D_instr</td><td>O</td><td>32</td><td>D级执行指令</td></tr><tr><td>D_pc</td><td>O</td><td>32</td><td>D级PC</td></tr><tr><td>D_pc8</td><td>O</td><td>32</td><td>D级PC+8</td></tr></tbody></table><h4 id=2e_reg>2.E_REG<a hidden class=anchor aria-hidden=true href=#2e_reg>#</a></h4><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>clk</td><td>I</td><td>1</td><td>时钟信号</td></tr><tr><td>reset</td><td>I</td><td>1</td><td>同步复位信号</td></tr><tr><td>clr</td><td>I</td><td>1</td><td>stall(清空E级)</td></tr><tr><td>D_V1</td><td>I</td><td>32</td><td>D级GRF中读取rs寄存器的值</td></tr><tr><td>D_V2</td><td>I</td><td>32</td><td>D级GRF中读取rt寄存器的值</td></tr><tr><td>D_A1</td><td>I</td><td>5</td><td>D级A1</td></tr><tr><td>D_A2</td><td>I</td><td>5</td><td>D级A2</td></tr><tr><td>D_A3</td><td>I</td><td>5</td><td>D级A3</td></tr><tr><td>D_E32</td><td>I</td><td>32</td><td>32位立即数</td></tr><tr><td>D_pc</td><td>I</td><td>32</td><td>D级pc</td></tr><tr><td>D_pc8</td><td>I</td><td>32</td><td>D级pc+8</td></tr><tr><td>T_new_D</td><td>I</td><td>2</td><td>D级T_new</td></tr><tr><td>RegWrite_D</td><td>I</td><td>1</td><td>D级GRF写入使能</td></tr><tr><td>MemWrite_D</td><td>I</td><td>1</td><td>D级DM写入使能</td></tr><tr><td>SelEMout_D</td><td>I</td><td>1</td><td>E、M级转发数据选择信号</td></tr><tr><td>SelWout_D</td><td>I</td><td>1</td><td>W级转发数据选择信号</td></tr><tr><td>SelALUB_D</td><td>I</td><td>1</td><td>ALUB端口数据选择</td></tr><tr><td>ALUOp_D</td><td>I</td><td>3</td><td>ALU操作选择</td></tr><tr><td>DMOp_D</td><td>I</td><td>3</td><td>DM操作选择</td></tr><tr><td>E_V1</td><td>O</td><td>32</td><td></td></tr><tr><td>E_V2</td><td>O</td><td>32</td><td></td></tr><tr><td>E_A1</td><td>O</td><td>5</td><td></td></tr><tr><td>E_A2</td><td>O</td><td>5</td><td></td></tr><tr><td>E_A3</td><td>O</td><td>5</td><td></td></tr><tr><td>E_E32</td><td>O</td><td>32</td><td></td></tr><tr><td>E_pc</td><td>O</td><td>32</td><td></td></tr><tr><td>E_pc8</td><td>O</td><td>32</td><td></td></tr><tr><td>T_new_E</td><td>O</td><td>2</td><td></td></tr><tr><td>RegWrite_E</td><td>O</td><td>1</td><td></td></tr><tr><td>MemWrite_E</td><td>O</td><td>1</td><td></td></tr><tr><td>SelEMout_E</td><td>O</td><td>1</td><td></td></tr><tr><td>SelWout_E</td><td>O</td><td>2</td><td></td></tr><tr><td>SelALUB_E</td><td>O</td><td>1</td><td></td></tr><tr><td>ALUOp_E</td><td>O</td><td>3</td><td></td></tr><tr><td>DMOp_E</td><td>O</td><td>3</td><td></td></tr></tbody></table><h4 id=3m_reg>3.M_REG<a hidden class=anchor aria-hidden=true href=#3m_reg>#</a></h4><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>clk</td><td>I</td><td>1</td><td></td></tr><tr><td>reset</td><td>I</td><td>1</td><td></td></tr><tr><td>E_AO</td><td>I</td><td>32</td><td>E级ALU计算结果</td></tr><tr><td>E_V2</td><td>I</td><td>32</td><td><strong>注意：E_V2不是D_V2,而是经过转发后的D_V2_f</strong></td></tr><tr><td>E_A2</td><td>I</td><td>5</td><td></td></tr><tr><td>E_A3</td><td>I</td><td>5</td><td></td></tr><tr><td>E_pc</td><td>I</td><td>32</td><td></td></tr><tr><td>E_pc8</td><td>I</td><td>32</td><td></td></tr><tr><td>T_new_E</td><td>I</td><td>2</td><td></td></tr><tr><td>RegWrite_E</td><td>I</td><td>1</td><td></td></tr><tr><td>MemWrite_E</td><td>I</td><td>1</td><td></td></tr><tr><td>SelEMout_E</td><td>I</td><td>1</td><td></td></tr><tr><td>SelWout_E</td><td>I</td><td>1</td><td></td></tr><tr><td>DMOp_E</td><td>I</td><td>3</td><td></td></tr><tr><td>M_AO</td><td>O</td><td>32</td><td></td></tr><tr><td>M_V2</td><td>O</td><td>5</td><td></td></tr><tr><td>M_A2</td><td>O</td><td>5</td><td></td></tr><tr><td>M_A3</td><td>O</td><td>5</td><td></td></tr><tr><td>M_pc</td><td>O</td><td>32</td><td></td></tr><tr><td>M_pc8</td><td>O</td><td>32</td><td></td></tr><tr><td>T_new_M</td><td>O</td><td>2</td><td></td></tr><tr><td>RegWrite_M</td><td>O</td><td>1</td><td></td></tr><tr><td>MemWrite_M</td><td>O</td><td>1</td><td></td></tr><tr><td>SelEMout_M</td><td>O</td><td>1</td><td></td></tr><tr><td>SelWout_M</td><td>O</td><td>2</td><td></td></tr><tr><td>DMOp_M</td><td>O</td><td>3</td><td></td></tr></tbody></table><h4 id=4w_reg>4.W_REG<a hidden class=anchor aria-hidden=true href=#4w_reg>#</a></h4><table><thead><tr><th>名称</th><th>方向</th><th>位宽</th><th>描述</th></tr></thead><tbody><tr><td>clk</td><td>I</td><td>1</td><td></td></tr><tr><td>reset</td><td>I</td><td>1</td><td></td></tr><tr><td>M_AO</td><td>I</td><td>32</td><td></td></tr><tr><td>M_DR</td><td>I</td><td>32</td><td>M级DM中读出的数据</td></tr><tr><td>M_A3</td><td></td><td></td><td></td></tr><tr><td>M_pc</td><td>I</td><td>32</td><td></td></tr><tr><td>M_pc8</td><td>I</td><td>32</td><td></td></tr><tr><td>SelWout_M</td><td>I</td><td>2</td><td></td></tr><tr><td>T_new_M</td><td>I</td><td>2</td><td></td></tr><tr><td>RegWrite_M</td><td>I</td><td>1</td><td></td></tr><tr><td>W_AO</td><td>O</td><td>32</td><td></td></tr><tr><td>W_DR</td><td>O</td><td>32</td><td></td></tr><tr><td>W_A3</td><td>O</td><td>5</td><td></td></tr><tr><td>W_pc</td><td>O</td><td>32</td><td></td></tr><tr><td>W_pc8</td><td>O</td><td>32</td><td></td></tr><tr><td>SelWout_W</td><td>O</td><td>2</td><td></td></tr><tr><td>T_new_W</td><td>O</td><td>2</td><td></td></tr><tr><td>RegWrite_W</td><td>O</td><td>1</td><td></td></tr></tbody></table><h3 id=12顶层连接>12.顶层连接<a hidden class=anchor aria-hidden=true href=#12顶层连接>#</a></h3><p>完整数据通路图<code>QAQ</code></p><p><img alt=image-20231121213449424 loading=lazy src=/img/image-20231121213449424.png></p><p>流水级中的主要模块：</p><ul><li>F级 ：IFU</li><li>D级 ：MCU,GRF,EXT,CMP,<strong>NPC(注意！一开始被教程中的图误导，放在了F级)</strong></li><li>E级 : ALU</li><li>M级 ：DM</li><li>顶层 ：HCU</li></ul><h2 id=三-test>三. test<a hidden class=anchor aria-hidden=true href=#三-test>#</a></h2><pre tabindex=0><code class=language-mips data-lang=mips>//祖传强测代码
+case0:
+ori $t0, $zero, 8
+add $t1, $t0, $zero
+
+case1:
+ori $t0, $zero, 8
+ori $t2, $zero, 12
+add $t1, $t0, $zero
+
+case2:
+ori $t0, $zero, 8
+ori $t2, $zero, 12
+ori $t3, $zero, 13
+add $t1, $t0, $zero
+
+case3:
+ori $t0, $zero, 8
+add $t1, $zero, $t0
+
+case4:
+ori $t0, $zero, 8
+ori $t2, $zero, 12
+add $t1, $zero, $t0
+
+case5:
+ori $t0, $zero, 8
+ori $t2, $zero, 12
+ori $t3, $zero, 13
+add $t1, $zero, $t0
+
+case6:
+lui $t0, 8
+add $t1, $t0, $zero
+
+case7:
+lui $t0, 8
+lui $t2, 12
+add $t1, $t0, $zero
+
+case8:
+lui $t0, 8
+lui $t2, 12
+lui $t3, 14
+add $t1, $t0, $zero
+
+case9:
+lui $t0, 8
+add $t1, $zero, $t0
+
+case10:
+lui $t0, 8
+lui $t2, 12
+add $t1, $zero, $t0
+
+case11:
+lui $t0, 8
+lui $t2, 12
+lui $t3, 14
+add $t1, $zero, $t0
+
+case12:
+lui $t0, 8
+add $t1, $zero, $t0
+add $t2, $t1, $zero
+
+case13:
+lui $t0, 8
+add $t1, $zero, $t0
+add $t3, $t0, $t0
+add $t2, $t1, $zero
+
+case14:
+lui $t0, 8
+add $t1, $zero, $t0
+add $t3, $t0, $t0
+add $t4, $t0, $t0
+add $t2, $t1, $t1
+
+case15:
+ori $t0, $zero, 8
+ori $t1, $zero, 12
+ori $t2, $zero, 16
+ori $t3, $zero, 20
+ori $t4, $zero, 24
+ori $t5, $zero, 28
+sw $t1, 0($t0)
+ori $s0, $zero, 4
+ori $s1, $zero, 8
+ori $s2, $zero, 12
+lw $t6, 0($t0)
+add $t7, $t6, $t6
+
+case16:
+ori $t0, $zero, 8
+ori $t1, $zero, 12
+ori $t2, $zero, 16
+ori $t3, $zero, 20
+ori $t4, $zero, 24
+sw $t1, 0($t0)
+ori $s0, $zero, 4
+ori $s1, $zero, 8
+ori $s2, $zero, 12
+lw $t6, 0($t0)
+ori $t5, $zero, 28
+add $t7, $t6, $t6
+
+case17:
+ori $t0, $zero, 8
+ori $t1, $zero, 12
+ori $t2, $zero, 16
+ori $t3, $zero, 20
+ori $t4, $zero, 24
+sw $t1, 0($t0)
+ori $s0, $zero, 4
+ori $s1, $zero, 8
+ori $s2, $zero, 12
+lw $t6, 0($t0)
+ori $t5, $zero, 28
+ori $t8, $zero, 32
+add $t7, $t6, $t6
+
+case18:
+ori $t0, $zero, 8
+ori $t1, $zero, 12
+ori $t2, $zero, 16
+jal change1
+add $t3, $ra, $ra
+ori $t4, $zero, 20
+ori $t5, $zero, 24
+change1:
+	ori $t6, $zero, 20
+	
+case19:
+ori $t0, $zero, 8
+ori $t1, $zero, 12
+ori $t2, $zero, 16
+jal change2
+ori $t4, $zero, 20
+ori $t5, $zero, 24
+change2:
+	add $t3, $ra, $ra
+	ori $t6, $zero, 20
+	ori $t7, $zero, 24
+
+case20:
+ori $t0, $zero, 8
+ori $t1, $zero, 12
+ori $t2, $zero, 16
+jal change3
+ori $t4, $zero, 20
+ori $t5, $zero, 24
+change3:
+	ori $t6, $zero, 20
+	add $t3, $ra, $ra
+	ori $t6, $zero, 20
+	ori $t7, $zero, 24
+
+case21:	
+ori $t0, $zero, 8
+ori $t1, $t0, 12
+
+case22:
+ori $t0, $zero, 8
+ori $t2, $zero, 20
+ori $t1, $t0, 12
+
+case23:
+ori $t0, $zero, 8
+ori $t2, $zero, 20
+ori $t3, $zero, 24
+ori $t1, $t0, 12
+
+case24:
+ori $t0, $zero, 8
+ori $t1, $zero, 20
+ori $t2, $zero, 24
+ori $t3, $zero, 12
+ori $t4, $zero, 16
+sub $t5, $t0, $t1
+ori $t6, $t5, 13
+
+case25:
+ori $t0, $zero, 8
+ori $t1, $zero, 20
+ori $t2, $zero, 24
+ori $t3, $zero, 12
+ori $t4, $zero, 16
+sub $t5, $t0, $t1
+ori $t7, $zero, 20
+ori $t6, $t5, 13
+
+case26:
+ori $t0, $zero, 8
+ori $t1, $zero, 20
+ori $t2, $zero, 24
+ori $t3, $zero, 12
+ori $t4, $zero, 16
+sub $t5, $t0, $t1
+ori $t7, $zero, 20
+ori $t8, $zero, 24
+ori $t6, $t5, 13
+
+case27:
+ori $t0, $zero, 8
+ori $t1, $zero, 20
+ori $t2, $zero, 4
+ori $t3, $zero, 12
+ori $t4, $zero, 16
+sw $t0, 0($t1)
+lw $t5, 0($t1)
+ori $t6, $t5, 13
+
+case28:
+ori $t0, $zero, 8
+ori $t1, $zero, 20
+ori $t2, $zero, 4
+ori $t3, $zero, 12
+ori $t4, $zero, 16
+sw $t0, 0($t1)
+lw $t5, 0($t1)
+ori $t7, $zero, 20
+ori $t6, $t5, 13
+
+case29:
+ori $t0, $zero, 8
+ori $t1, $zero, 20
+ori $t2, $zero, 4
+ori $t3, $zero, 12
+ori $t4, $zero, 16
+sw $t0, 0($t1)
+lw $t5, 0($t1)
+ori $t7, $zero, 20
+ori $t8, $zero, 24
+ori $t6, $t5, 13
+
+case30:
+ori $t0, $zero, 8
+ori $t1, $zero, 20
+jal change4
+ori $t2, $ra, 8
+ori $t3, $zero, 14
+change4:
+	ori $t4, $zero, 18
+ori $t5, $zero, 22
+ori $t6, $zero, 26
+
+case31:
+ori $t0, $zero, 8
+ori $t1, $zero, 20
+jal change5
+ori $t2, $zero, 4
+ori $t3, $zero, 14
+change5:
+	ori $t4, $ra, 18
+ori $t5, $zero, 22
+ori $t6, $zero, 26
+
+case32:
+ori $t0, $zero, 8
+ori $t1, $zero, 20
+jal change6
+ori $t2, $zero, 4
+ori $t3, $zero, 14
+change6:
+	ori $t7, $zero, 6
+	ori $t4, $ra, 18
+ori $t5, $zero, 22
+ori $t6, $zero, 26
+
+case33:
+ori $t0, $zero, 4
+ori $t1, $zero, 8
+ori $t2, $zero, 9
+ori $t3, $zero, 12
+sw $t1, 0($t0)
+sw $t2, 4($t0)
+sw $t3, 8($t0)
+
+occasionl1:	#R_E_RS
+	sub $t4, $t1, $t0
+	lw $t5, 0($t4)
+	
+occasionl2:	#R_M_RS
+	sub $t5, $t3, $t0
+	ori $zero, $zero, 5
+	lw $t6, 0($t5)
+
+occasionl3:	#R_W_RS
+	add $t6, $t0, $t1
+	ori $s0, $zero, 12
+	ori $s1, $zero, 16
+	lw $t7, 0($t6)
+	
+case34:
+ori $t0, $zero, 4
+ori $t1, $zero, 8
+ori $t2, $zero, 9
+ori $t3, $zero, 12
+sw $t1, 0($t0)
+sw $t2, 4($t0)
+sw $t3, 8($t0)
+
+occasionl4:	#R_E_RS
+	ori $t4, $zero, 4
+	lw $t5, 0($t4)
+	
+occasionl5:	#R_M_RS
+	ori $t5, $zero, 8
+	ori $zero, $zero, 5
+	lw $t6, 0($t5)
+
+occasionl6:	#R_W_RS
+	ori $t6, $zero, 12
+	ori $s0, $zero, 12
+	ori $s1, $zero, 16
+	lw $t7, 0($t6)
+	
+case35:
+ori $t0, $zero, 4
+ori $t1, $zero, 8
+ori $t2, $zero, 12
+ori $t3, $zero, 16
+sw $t0, 0($zero)
+sw $t1, 0($t0)
+sw $t2, 0($t1)
+sw $t3, 4($t1)
+
+ occasionl7:	#ld_E_RS
+ 	lw $t4, 0($t0)
+ 	lw $t5, 0($t4)
+ 	
+ occasionl8:	#ld_M_RS
+ 	lw $t5, -4($t0)
+ 	add $zero, $zero, $t1
+ 	lw $t6, 0($t5)
+ 	
+ occasionl9:	#ld_W_RS
+ 	lw $t6, 4($t0)
+ 	ori $s0, $zero, 1
+ 	ori $s1, $zero, 2
+ 	lw $t7, 0($t6)
+ 	
+case36:
+ori $t0, $zero, 4
+ori $t1, $zero, 8
+ori $t2, $zero, 12
+ori $t3, $zero, 16
+ori $t4, $zero, 20
+
+occasions1:	#R_E_RS
+	add $t5, $t0, $t1
+	sw $t2, 0($t5)
+	
+occasions2:	#R_M_RS
+	sub $t6, $t2, $t1
+	ori $s0, $zero, 12
+	sw $t3, 4($t6)
+
+occasions3:	#R_W_RS
+	sub $t7, $t4, $t0
+	ori $s1, $zero, 4
+	ori $s2, $zero, 8
+	sw $t4, 0($t7)
+
+occasions4:	#R_E_RT
+	sub $t5, $t1, $t0
+	sw $t5, 0($t0)
+
+occasions5:	#R_M_RT
+	sub $t5, $t2, $t0
+	ori $s0, $zero, 2
+	sw $t5, 4($t2)
+	
+occasions6:	#R_W_RT
+	add $t6, $t3, $t4
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	sw $t6, 0($t1)
+	
+case37:
+ori $t0, $zero, 4
+ori $t1, $zero, 8
+ori $t2, $zero, 12
+ori $t3, $zero, 16
+ori $t4, $zero, 20
+
+occasions7:	#I_E_RS
+	ori $t5, $zero, 12
+	sw $t2, 0($t5)
+	
+occasions8:	#I_M_RS
+	ori $t6, $zero, 4
+	ori $s0, $zero, 12
+	sw $t3, 4($t6)
+
+occasions9:	#I_W_RS
+	ori $t7, $zero, 16
+	ori $s1, $zero, 4
+	ori $s2, $zero, 8
+	sw $t4, 0($t7)
+
+occasions10:	#I_E_RT
+	lui $t5, 3
+	sw $t5, 0($t0)
+
+occasions11:	#I_M_RT
+	lui $t5, 1
+	ori $s0, $zero, 2
+	sw $t5, 4($t2)
+	
+occasions12:	#I_W_RT
+	ori $zero, $zero, 9
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	sw $zero, 0($t1)
+
+case38:
+ori $t0, $zero, 4
+ori $t1, $zero, 8
+ori $t2, $zero, 12
+ori $t3, $zero, 16
+ori $t4, $zero, 20
+sw $t0, 0($zero)
+sw $t1, 0($t0)
+sw $t2, 4($t0)
+sw $t3, 8($t0)
+occasions13:	#ld_E_RS
+	lw $t5, 0($t0)
+	sw $t2, 0($t5)
+	
+occasions14:	#ld_M_RS
+	lw $t6, 0($t0)
+	ori $s0, $zero, 12
+	sw $t3, 4($t6)
+
+occasions15:	#ld_W_RS
+	lw $t7, 4($t0)
+	ori $s1, $zero, 4
+	ori $s2, $zero, 8
+	sw $t4, 0($t7)
+
+occasions16:	#ld_E_RT
+	lw $t5, 0($t2)
+	sw $t5, 0($t0)
+
+occasions17:	#ld_M_RT
+	lw $t5, 4($t2)
+	ori $s0, $zero, 2
+	sw $t5, 4($t2)
+	
+occasions18:	#ld_W_RT
+	lw $t6, 4($t0)
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	sw $t6, 0($t1)
+	
+case39:
+ori $t0, $zero, 4
+ori $t1, $zero, 8
+ori $t2, $zero, 12
+ori $t3, $zero, 16
+sub $t4, $t0, $t1
+
+occasionbr1:	#R_E_RS
+	add $t5, $t0, $t1
+	beq $t5, $t2, changeb1
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changeb1:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+occasionbr2:	#R_M_RS
+	add $t6, $t0, $t1
+	ori $s0, $zero, 1
+	beq $t6, $t2, changeb2
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changeb2:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+occasionbr3:	#R_W_RS
+	add $t7, $t0, $t1
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	beq $t7, $t2, changeb3
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changeb3:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+occasionbr4:	#R_E_RT
+	sub $t5, $t1, $t2
+	beq $t4, $t5, changeb4
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changeb4:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+occasionbr5:	#R_M_RT
+	sub $t6, $t1, $t2
+	ori $s0, $zero, 1
+	beq $t4, $t6, changeb5
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changeb5:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+occasionbr6:	#R_W_RT
+	sub $t7, $t1, $t2
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	beq $t4, $t7, changeb6
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changeb6:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+
+case40:
+ori $t0, $zero, 4
+ori $t1, $zero, 8
+ori $t2, $zero, 12
+ori $t3, $zero, 16
+sub $t4, $t0, $t1
+
+occasionbru1:	#R_E_RS
+	add $t5, $t0, $t1
+	beq $t5, $t3, changebru1
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebru1:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+occasionbru2:	#R_M_RS
+	add $t6, $t0, $t1
+	ori $s0, $zero, 1
+	beq $t6, $t3, changebru2
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebru2:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+occasionbru3:	#R_W_RS
+	add $t7, $t0, $t1
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	beq $t7, $t3, changebru3
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebru3:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+occasionbru4:	#R_E_RT
+	sub $t5, $t1, $t2
+	beq $t3, $t5, changebru4
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebru4:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+occasionbru5:	#R_M_RT
+	sub $t6, $t1, $t2
+	ori $s0, $zero, 1
+	beq $t3, $t6, changebru5
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebru5:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+occasionbru6:	#R_W_RT
+	sub $t7, $t1, $t2
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	beq $t3, $t7, changebru6
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebru6:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+case41:
+ori $t0, $zero, 4
+ori $t1, $zero, 8
+ori $t2, $zero, 12
+ori $t3, $zero, 16
+sub $t4, $t0, $t1
+
+occasionbi1:	#I_E_RS
+	ori $t5, $zero, 16
+	beq $t5, $t3, changebi1
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebi1:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+occasionbi2:	#I_M_RS
+	ori $t6, $zero, 16
+	ori $s0, $zero, 1
+	beq $t6, $t3, changebi2
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebi2:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+occasionbi3:	#I_W_RS
+	ori $t7, $zero, 16
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	beq $t7, $t3, changebi3
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebi3:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+occasionbi4:	#I_E_RT
+	ori $t5, $zero, 8
+	beq $t1, $t5, changebi4
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebi4:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+occasionbi5:	#I_M_RT
+	ori $t6, $zero, 8
+	ori $s0, $zero, 1
+	beq $t1, $t6, changebi5
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebi5:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+occasionbi6:	#I_W_RT
+	ori $t7, $zero, 8
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	beq $t1, $t7, changebi6
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebi6:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+case42:
+ori $t0, $zero, 4
+ori $t1, $zero, 8
+ori $t2, $zero, 12
+ori $t3, $zero, 16
+sub $t4, $t0, $t1
+
+occasionbiu1:	#I_E_RS
+	ori $t5, $zero, 16
+	beq $t5, $t2, changebiu1
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebiu1:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+occasionbiu2:	#I_M_RS
+	ori $t6, $zero, 16
+	ori $s0, $zero, 1
+	beq $t6, $t2, changebiu2
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebiu2:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+occasionbiu3:	#I_W_RS
+	ori $t7, $zero, 16
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	beq $t7, $t2, changebiu3
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebiu3:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+occasionbiu4:	#I_E_RT
+	ori $t5, $zero, 8
+	beq $t2, $t5, changebiu4
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebiu4:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+occasionbiu5:	#I_M_RT
+	ori $t6, $zero, 8
+	ori $s0, $zero, 1
+	beq $t2, $t6, changebiu5
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebiu5:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+occasionbiu6:	#I_W_RT
+	ori $t7, $zero, 8
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	beq $t2, $t7, changebiu6
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebiu6:
+		ori $s2, $zero, 3
+		ori $s3, $zero, 4
+		
+case43:
+ori $t0, $zero, 4
+ori $t1, $zero, 8
+ori $t2, $zero, 12
+ori $s0, $zero, 1
+sw $t0, 0($zero)
+sw $t1, 4($zero)
+sw $t2, 8($zero)
+ori $s0, $zero, 1
+ori $s1, $zero, 2
+
+occasionbld1:	#ld_E_RS
+	lw $t3, 0($t0)
+	beq $t3, $t1, changebld1
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebld1:
+		ori $s2, $zero, 2
+		ori $s3, $zero, 3
+		
+occasionbld2:	#ld_M_RS
+	lw $t4, 0($t0)
+	ori $s2, $zero, 2
+	beq $t4, $t1, changebld2
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebld2:
+		ori $s2, $zero, 2
+		ori $s3, $zero, 3
+		
+occasionbld3:	#ld_W_RS
+	lw $t5, 0($t0)
+	ori $s2, $zero, 2
+	ori $s3, $zero, 3
+	beq $t5, $t1, changebld3
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebld3:
+		ori $s2, $zero, 2
+		ori $s3, $zero, 3
+		
+occasionbld4:	#ld_E_RT
+	lw $t6, 0($t0)
+	beq $t6, $t1, changebld4
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebld4:
+		ori $s2, $zero, 2
+		ori $s3, $zero, 3
+		
+occasionbld5:	#ld_M_RT
+	lw $t7, 0($t0)
+	ori $s2, $zero, 2
+	beq $t7, $t1, changebld5
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebld5:
+		ori $s2, $zero, 2
+		ori $s3, $zero, 3
+		
+occasionbld6:	#ld_W_RT
+	lw $t8, 0($t0)
+	ori $s2, $zero, 2
+	ori $s3, $zero, 3
+	beq $t8, $t1, changebld6
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebld6:
+		ori $s2, $zero, 2
+		ori $s3, $zero, 3
+		
+case44:
+ori $t0, $zero, 4
+ori $t1, $zero, 8
+ori $t2, $zero, 12
+ori $s0, $zero, 1
+sw $t0, 0($zero)
+sw $t1, 4($zero)
+sw $t2, 8($zero)
+ori $s0, $zero, 1
+ori $s1, $zero, 2
+
+occasionbldu1:	#ld_E_RS
+	lw $t3, 0($t0)
+	beq $t3, $t0, changebldu1
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebldu1:
+		ori $s2, $zero, 2
+		ori $s3, $zero, 3
+		
+occasionbldu2:	#ld_M_RS
+	lw $t4, 0($t0)
+	ori $s2, $zero, 2
+	beq $t4, $t0, changebldu2
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebldu2:
+		ori $s2, $zero, 2
+		ori $s3, $zero, 3
+		
+occasionbldu3:	#ld_W_RS
+	lw $t5, 0($t0)
+	ori $s2, $zero, 2
+	ori $s3, $zero, 3
+	beq $t5, $t0, changebldu3
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebldu3:
+		ori $s2, $zero, 2
+		ori $s3, $zero, 3
+		
+occasionbldu4:	#ld_E_RT
+	lw $t6, 0($t0)
+	beq $t0, $t6, changebldu4
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebldu4:
+		ori $s2, $zero, 2
+		ori $s3, $zero, 3
+		
+occasionbldu5:	#ld_M_RT
+	lw $t7, 0($t0)
+	ori $s2, $zero, 2
+	beq $t0, $t7, changebldu5
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebldu5:
+		ori $s2, $zero, 2
+		ori $s3, $zero, 3
+		
+occasionbldu6:	#ld_W_RT
+	lw $t8, 0($t0)
+	ori $s2, $zero, 2
+	ori $s3, $zero, 3
+	beq $t0, $t8, changebldu6
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebldu6:
+		ori $s2, $zero, 2
+		ori $s3, $zero, 3
+		
+case45:
+ori $t0, $zero, 4
+ori $t1, $zero, 0x000039a0
+ori $t2, $zero, 0x000039c0
+ori $t3, $zero, 0x000039a4
+ori $t4, $zero, 0x00003a04
+occasionbj1:	#jal_M_RS
+	jal changebj1
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebj1:
+		beq $ra, $t1, changebj11
+		ori $s0, $zero, 1
+		ori $s1, $zero, 2
+		changebj11:
+			ori $s2, $zero, 2
+			ori $s3, $zero, 3
+occasionbj2:	#jal_W_RS
+	jal changebj2
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebj2:
+		ori $s2, $zero, 2
+		beq $ra, $t2, changebj21
+		ori $s0, $zero, 1
+		ori $s1, $zero, 2
+		changebj21:
+			ori $s2, $zero, 2
+			ori $s3, $zero, 3
+			
+occasionbj3:	#jal_M_RT
+	jal changebj3
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebj3:
+		beq $t3, $ra, changebj31
+		ori $s0, $zero, 1
+		ori $s1, $zero, 2
+		changebj31:
+			ori $s2, $zero, 2
+			ori $s3, $zero, 3
+occasionbj4:	#jal_W_RT
+	jal changebj4
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebj4:
+		ori $s2, $zero, 2
+		beq $t4, $ra, changebj41
+		ori $s0, $zero, 1
+		ori $s1, $zero, 2
+		changebj41:
+			ori $s2, $zero, 2
+			ori $s3, $zero, 3
+			
+case46:
+ori $t0, $zero, 4
+ori $t1, $zero, 0x0000399c
+ori $t2, $zero, 0x000039bc
+ori $t3, $zero, 0x000039e0
+ori $t4, $zero, 0x00003a00
+occasionbju1:	#jal_M_RS
+	jal changebju1
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebju1:
+		beq $ra, $t1, changebju11
+		ori $s0, $zero, 1
+		ori $s1, $zero, 2
+		changebju11:
+			ori $s2, $zero, 2
+			ori $s3, $zero, 3
+occasionbju2:	#jal_W_RS
+	jal changebju2
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebju2:
+		ori $s2, $zero, 2
+		beq $ra, $t2, changebju21
+		ori $s0, $zero, 1
+		ori $s1, $zero, 2
+		changebju21:
+			ori $s2, $zero, 2
+			ori $s3, $zero, 3
+			
+occasionbju3:	#jal_M_RT
+	jal changebju3
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebju3:
+		beq $t3, $ra, changebju31
+		ori $s0, $zero, 1
+		ori $s1, $zero, 2
+		changebju31:
+			ori $s2, $zero, 2
+			ori $s3, $zero, 3
+occasionbju4:	#jal_W_RT
+	jal changebju4
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	changebju4:
+		ori $s2, $zero, 2
+		beq $t4, $ra, changebju41
+		ori $s0, $zero, 1
+		ori $s1, $zero, 2
+		changebju41:
+			ori $s2, $zero, 2
+			ori $s3, $zero, 3
+			
+case47:
+ori $t0, $zero, 4
+ori $t1, $zero, 0x00003010
+ori $t2, $zero, 0x00003030
+ori $t3, $zero, 0x00003050
+ori $t4, $zero, 0x00003070
+occasionjms1:	#jal_M_RS
+	jal changejms1
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	ori $s2, $zero, 2
+	ori $s3, $zero, 3
+	j case48
+	ori $s4, $zero, 4
+	changejms1:
+		jr $ra
+		ori $s0, $zero, 1
+		ori $s1, $zero, 2
+		
+case48:
+ori $t0, $zero, 4
+ori $t1, $zero, 0x00003010
+ori $t2, $zero, 0x00003030
+ori $t3, $zero, 0x00003050
+ori $t4, $zero, 0x00003070
+occasionjws1:	#jal_W_RS
+	jal changejws1
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	ori $s2, $zero, 2
+	ori $s3, $zero, 3
+	j case49
+	ori $s4, $zero, 4
+	changejws1:
+		ori $s3, $zero, 3
+		jr $ra
+		ori $s0, $zero, 1
+		ori $s1, $zero, 2
+		
+case49:
+ori $t0, $zero, 4
+ori $t1, $zero, 8
+ori $t2, $zero, 0x00003b58
+ori $s0, $zero, 1
+ori $s1, $zero, 2
+ori $s2, $zero, 3
+occasionres1:	#R_E_RS
+	add $t3, $t0, $t2
+	jr $t3
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	ori $s2, $zero, 3
+
+case50:
+ori $t0, $zero, 4
+ori $t1, $zero, 8
+ori $t2, $zero, 0x00003b88
+ori $s0, $zero, 1
+ori $s1, $zero, 2
+ori $s2, $zero, 3
+occasionrms1:	#R_M_RS
+	add $t3, $t0, $t2
+	ori $s0, $zero, 1
+	jr $t3
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	ori $s2, $zero, 3
+	
+case51:
+ori $t0, $zero, 4
+ori $t1, $zero, 8
+ori $t2, $zero, 0x00003bbc
+ori $s0, $zero, 1
+ori $s1, $zero, 2
+ori $s2, $zero, 3
+occasionrws1:	#R_W_RS
+	add $t3, $t0, $t2
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	jr $t3
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	ori $s2, $zero, 3
+	
+case52:
+ori $t0, $zero, 4
+ori $t1, $zero, 8
+ori $t2, $zero, 0x00003bec
+ori $s0, $zero, 1
+ori $s1, $zero, 2
+ori $s2, $zero, 3
+occasionies1:	#I_E_RS
+	ori $t3, $t2, 0
+	jr $t3
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	ori $s2, $zero, 3
+	
+case53:
+ori $t0, $zero, 4
+ori $t1, $zero, 8
+ori $t2, $zero, 0x00003c1c
+ori $s0, $zero, 1
+ori $s1, $zero, 2
+ori $s2, $zero, 3
+occasionims1:	#I_M_RS
+	ori $t3, $t2, 0
+	ori $s0, $zero, 1
+	jr $t3
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	ori $s2, $zero, 3
+	
+case54:
+ori $t0, $zero, 4
+ori $t1, $zero, 8
+ori $t2, $zero, 0x00003c50
+ori $s0, $zero, 1
+ori $s1, $zero, 2
+ori $s2, $zero, 3
+occasioniws1:	#I_W_RS
+	ori $t3, $t2, 0
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	jr $t3
+	ori $s0, $zero, 1
+	ori $s1, $zero, 2
+	ori $s2, $zero, 3
+	
+case55:
+ori $t0, $zero, 0X00003c84
+ori $t1, $zero, 0X00003008
+ori $s0, $zero, 0
+ori $s0, $zero, 0
+sw $t0, 0($zero)
+sw $t1, 4($zero)
+ori $s0, $zero, 0
+ori $s0, $zero, 0
+occasionldes1:	#ld_E_RS
+	lw $t2, 0($zero)
+	jr $t2
+	ori $s0, $zero, 0
+	ori $s0, $zero, 0
+	ori $s0, $zero, 0
+	
+case56:
+ori $t0, $zero, 0X00003cbc
+ori $t1, $zero, 0X00003008
+ori $s0, $zero, 0
+ori $s0, $zero, 0
+sw $t0, 0($zero)
+sw $t1, 4($zero)
+ori $s0, $zero, 0
+ori $s0, $zero, 0
+occasionldms1:	#ld_M_RS
+	lw $t2, 0($zero)
+	ori $s0, $zero, 0
+	jr $t2
+	ori $s0, $zero, 0
+	ori $s0, $zero, 0
+	ori $s0, $zero, 0
+	
+case57:
+ori $t0, $zero, 0X00003cf8
+ori $t1, $zero, 0X00003008
+ori $s0, $zero, 0
+ori $s0, $zero, 0
+sw $t0, 0($zero)
+sw $t1, 4($zero)
+ori $s0, $zero, 0
+ori $s0, $zero, 0
+occasionldws1:	#ld_W_RS
+	lw $t2, 0($zero)
+	ori $s0, $zero, 0
+	ori $s0, $zero, 0
+	jr $t2
+	ori $s0, $zero, 0
+	ori $s0, $zero, 0
+	ori $s0, $zero, 0
+</code></pre><h2 id=四思考题>四.思考题<a hidden class=anchor aria-hidden=true href=#四思考题>#</a></h2><h4 id=1我们使用提前分支判断的方法尽早产生结果来减少因不确定而带来的开销但实际上这种方法并非总能提高效率请从流水线冒险的角度思考其原因并给出一个指令序列的例子>1.我们使用提前分支判断的方法尽早产生结果来减少因不确定而带来的开销，但实际上这种方法并非总能提高效率，请从流水线冒险的角度思考其原因并给出一个指令序列的例子<a hidden class=anchor aria-hidden=true href=#1我们使用提前分支判断的方法尽早产生结果来减少因不确定而带来的开销但实际上这种方法并非总能提高效率请从流水线冒险的角度思考其原因并给出一个指令序列的例子>#</a></h4><ul><li><p>我们使用两个寄存器值的时间最早来到了D级，所以很可能会引发暂停.</p></li><li><p>如下面这种情况，若beq的结果在E级产生，则不需要暂停，可以转发，但是现在beq在D级的时候lw还在M级，没有产生结果，需要暂停。</p></li><li><div class=highlight><div style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><table style=border-spacing:0;padding:0;margin:0;border:0><tr><td style=vertical-align:top;padding:0;margin:0;border:0><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">1
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">2
+</span><span style="white-space:pre;-webkit-user-select:none;user-select:none;margin-right:.4em;padding:0 .4em;color:#7f7f7f">3
+</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%><pre tabindex=0 style=color:#f8f8f2;background-color:#282a36;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none><code class=language-verilog data-lang=verilog><span style=display:flex><span>lw    $t0, <span style=color:#bd93f9>0</span>($<span style=color:#bd93f9>0</span>)
+</span></span><span style=display:flex><span>nop
+</span></span><span style=display:flex><span>beq   $t0, $t0, label
+</span></span></code></pre></td></tr></table></div></div></li></ul><h4 id=2因为延迟槽的存在对于-jal-等需要将指令地址写入寄存器的指令要写回-pc--8请思考为什么这样设计>2.因为延迟槽的存在，对于 jal 等需要将指令地址写入寄存器的指令，要写回 PC + 8，请思考为什么这样设计？<a hidden class=anchor aria-hidden=true href=#2因为延迟槽的存在对于-jal-等需要将指令地址写入寄存器的指令要写回-pc--8请思考为什么这样设计>#</a></h4><ul><li>因为延迟槽的存在，跳转指令的后一条必然会执行，所以需要把PC+8写入寄存器，不然jr时延迟槽内的指令会再执行一次</li></ul><h4 id=3我们要求大家所有转发数据都来源于流水寄存器而不能是功能部件如-dm--alu-请思考为什么>3.我们要求大家所有转发数据都来源于流水寄存器而不能是功能部件（如 DM 、 ALU ），请思考为什么？<a hidden class=anchor aria-hidden=true href=#3我们要求大家所有转发数据都来源于流水寄存器而不能是功能部件如-dm--alu-请思考为什么>#</a></h4><ul><li>会导致时钟周期变长、时钟频率降低，整体花费时间变长</li></ul><h4 id=4我们为什么要使用-gpr-内部转发该如何实现>4.我们为什么要使用 GPR 内部转发？该如何实现？<a hidden class=anchor aria-hidden=true href=#4我们为什么要使用-gpr-内部转发该如何实现>#</a></h4><ul><li>为了保持W级的写入和此时D级的读出是同一个值，规避数据冒险。实现方法就是在RF模块里加上一个MUX，判断当冲突条件满足时，转发。</li></ul><h4 id=5我们转发时数据的需求者和供给者可能来源于哪些位置共有哪些转发数据通路>5.我们转发时数据的需求者和供给者可能来源于哪些位置？共有哪些转发数据通路？<a hidden class=anchor aria-hidden=true href=#5我们转发时数据的需求者和供给者可能来源于哪些位置共有哪些转发数据通路>#</a></h4><ul><li>见第二部分HCU的分析</li></ul><h4 id=6在课上测试时我们需要你现场实现新的指令对于这些新的指令你可能需要在原有的数据通路上做哪些扩展或修改提示你可以对指令进行分类思考每一类指令可能修改或扩展哪些位置>6.在课上测试时，我们需要你现场实现新的指令，对于这些新的指令，你可能需要在原有的数据通路上做哪些扩展或修改？提示：你可以对指令进行分类，思考每一类指令可能修改或扩展哪些位置<a hidden class=anchor aria-hidden=true href=#6在课上测试时我们需要你现场实现新的指令对于这些新的指令你可能需要在原有的数据通路上做哪些扩展或修改提示你可以对指令进行分类思考每一类指令可能修改或扩展哪些位置>#</a></h4><ul><li>对于计算类：首先改变MCU，注意每个指令的控制信号的对应，再改ALU的结构，增加输出选择</li><li>对于访存类：改变MCU+修改DM增加相应的功能</li><li>对于跳转类：修改MCU+NPC相应功能修改</li><li>小技巧：寻找已有的指令中与新增的指令相似的指令（可能不止一条），然后顺着这几条指令改。</li></ul><h4 id=7简要描述你的译码器架构并思考该架构的优势以及不足>7.简要描述你的译码器架构，并思考该架构的优势以及不足<a hidden class=anchor aria-hidden=true href=#7简要描述你的译码器架构并思考该架构的优势以及不足>#</a></h4><p>​ 我采用了集中式译码，优势是不需要编写多个译码器，缺点是流水线寄存器比较难以维护。</p></div><footer class=post-footer><ul class=post-tags><li><a href=https://coder0xe.github.io/tags/nov/>Nov</a></li></ul><nav class=paginav><a class=prev href=https://coder0xe.github.io/posts/p5%E8%AF%BE%E4%B8%8A%E6%B5%8B%E8%AF%95/><span class=title>« Prev</span><br><span>P5课上测试</span>
+</a><a class=next href=https://coder0xe.github.io/posts/p4-verilog-cpu/><span class=title>Next »</span><br><span>支持40条指令P4_Verilog_CPU</span></a></nav><ul class=share-buttons><li><a target=_blank rel="noopener noreferrer" aria-label="share P5-pipeline-CPU-Design-Document on x" href="https://x.com/intent/tweet/?text=P5-pipeline-CPU-Design-Document&amp;url=https%3a%2f%2fcoder0xe.github.io%2fposts%2fp5-pipeline-cpu-design-document%2f&amp;hashtags=Nov"><svg viewBox="0 0 512 512" height="30" width="30" fill="currentColor"><path d="M512 62.554V449.446C512 483.97 483.97 512 449.446 512H62.554C28.03 512 0 483.97.0 449.446V62.554C0 28.03 28.029.0 62.554.0H449.446C483.971.0 512 28.03 512 62.554zM269.951 190.75 182.567 75.216H56L207.216 272.95 63.9 436.783h61.366L235.9 310.383l96.667 126.4H456L298.367 228.367l134-153.151H371.033zM127.633 110h36.468l219.38 290.065H349.5z"/></svg></a></li><li><a target=_blank rel="noopener noreferrer" aria-label="share P5-pipeline-CPU-Design-Document on linkedin" href="https://www.linkedin.com/shareArticle?mini=true&amp;url=https%3a%2f%2fcoder0xe.github.io%2fposts%2fp5-pipeline-cpu-design-document%2f&amp;title=P5-pipeline-CPU-Design-Document&amp;summary=P5-pipeline-CPU-Design-Document&amp;source=https%3a%2f%2fcoder0xe.github.io%2fposts%2fp5-pipeline-cpu-design-document%2f"><svg viewBox="0 0 512 512" height="30" width="30" fill="currentColor"><path d="M449.446.0C483.971.0 512 28.03 512 62.554v386.892C512 483.97 483.97 512 449.446 512H62.554c-34.524.0-62.554-28.03-62.554-62.554V62.554c0-34.524 28.029-62.554 62.554-62.554h386.892zM160.461 423.278V197.561h-75.04v225.717h75.04zm270.539.0V293.839c0-69.333-37.018-101.586-86.381-101.586-39.804.0-57.634 21.891-67.617 37.266v-31.958h-75.021c.995 21.181.0 225.717.0 225.717h75.02V297.222c0-6.748.486-13.492 2.474-18.315 5.414-13.475 17.767-27.434 38.494-27.434 27.135.0 38.007 20.707 38.007 51.037v120.768H431zM123.448 88.722C97.774 88.722 81 105.601 81 127.724c0 21.658 16.264 39.002 41.455 39.002h.484c26.165.0 42.452-17.344 42.452-39.002-.485-22.092-16.241-38.954-41.943-39.002z"/></svg></a></li><li><a target=_blank rel="noopener noreferrer" aria-label="share P5-pipeline-CPU-Design-Document on reddit" href="https://reddit.com/submit?url=https%3a%2f%2fcoder0xe.github.io%2fposts%2fp5-pipeline-cpu-design-document%2f&title=P5-pipeline-CPU-Design-Document"><svg viewBox="0 0 512 512" height="30" width="30" fill="currentColor"><path d="M449.446.0C483.971.0 512 28.03 512 62.554v386.892C512 483.97 483.97 512 449.446 512H62.554c-34.524.0-62.554-28.03-62.554-62.554V62.554c0-34.524 28.029-62.554 62.554-62.554h386.892zM446 265.638c0-22.964-18.616-41.58-41.58-41.58-11.211.0-21.361 4.457-28.841 11.666-28.424-20.508-67.586-33.757-111.204-35.278l18.941-89.121 61.884 13.157c.756 15.734 13.642 28.29 29.56 28.29 16.407.0 29.706-13.299 29.706-29.701.0-16.403-13.299-29.702-29.706-29.702-11.666.0-21.657 6.792-26.515 16.578l-69.105-14.69c-1.922-.418-3.939-.042-5.585 1.036-1.658 1.073-2.811 2.761-3.224 4.686l-21.152 99.438c-44.258 1.228-84.046 14.494-112.837 35.232-7.468-7.164-17.589-11.591-28.757-11.591-22.965.0-41.585 18.616-41.585 41.58.0 16.896 10.095 31.41 24.568 37.918-.639 4.135-.99 8.328-.99 12.576.0 63.977 74.469 115.836 166.33 115.836s166.334-51.859 166.334-115.836c0-4.218-.347-8.387-.977-12.493 14.564-6.47 24.735-21.034 24.735-38.001zM326.526 373.831c-20.27 20.241-59.115 21.816-70.534 21.816-11.428.0-50.277-1.575-70.522-21.82-3.007-3.008-3.007-7.882.0-10.889 3.003-2.999 7.882-3.003 10.885.0 12.777 12.781 40.11 17.317 59.637 17.317 19.522.0 46.86-4.536 59.657-17.321 3.016-2.999 7.886-2.995 10.885.008 3.008 3.011 3.003 7.882-.008 10.889zm-5.23-48.781c-16.373.0-29.701-13.324-29.701-29.698.0-16.381 13.328-29.714 29.701-29.714 16.378.0 29.706 13.333 29.706 29.714.0 16.374-13.328 29.698-29.706 29.698zM160.91 295.348c0-16.381 13.328-29.71 29.714-29.71 16.369.0 29.689 13.329 29.689 29.71.0 16.373-13.32 29.693-29.689 29.693-16.386.0-29.714-13.32-29.714-29.693z"/></svg></a></li><li><a target=_blank rel="noopener noreferrer" aria-label="share P5-pipeline-CPU-Design-Document on facebook" href="https://facebook.com/sharer/sharer.php?u=https%3a%2f%2fcoder0xe.github.io%2fposts%2fp5-pipeline-cpu-design-document%2f"><svg viewBox="0 0 512 512" height="30" width="30" fill="currentColor"><path d="M449.446.0C483.971.0 512 28.03 512 62.554v386.892C512 483.97 483.97 512 449.446 512H342.978V319.085h66.6l12.672-82.621h-79.272v-53.617c0-22.603 11.073-44.636 46.58-44.636H425.6v-70.34s-32.71-5.582-63.982-5.582c-65.288.0-107.96 39.569-107.96 111.204v62.971h-72.573v82.621h72.573V512h-191.104c-34.524.0-62.554-28.03-62.554-62.554V62.554c0-34.524 28.029-62.554 62.554-62.554h386.892z"/></svg></a></li><li><a target=_blank rel="noopener noreferrer" aria-label="share P5-pipeline-CPU-Design-Document on whatsapp" href="https://api.whatsapp.com/send?text=P5-pipeline-CPU-Design-Document%20-%20https%3a%2f%2fcoder0xe.github.io%2fposts%2fp5-pipeline-cpu-design-document%2f"><svg viewBox="0 0 512 512" height="30" width="30" fill="currentColor"><path d="M449.446.0C483.971.0 512 28.03 512 62.554v386.892C512 483.97 483.97 512 449.446 512H62.554c-34.524.0-62.554-28.03-62.554-62.554V62.554c0-34.524 28.029-62.554 62.554-62.554h386.892zm-58.673 127.703c-33.842-33.881-78.847-52.548-126.798-52.568-98.799.0-179.21 80.405-179.249 179.234-.013 31.593 8.241 62.428 23.927 89.612l-25.429 92.884 95.021-24.925c26.181 14.28 55.659 21.807 85.658 21.816h.074c98.789.0 179.206-80.413 179.247-179.243.018-47.895-18.61-92.93-52.451-126.81zM263.976 403.485h-.06c-26.734-.01-52.954-7.193-75.828-20.767l-5.441-3.229-56.386 14.792 15.05-54.977-3.542-5.637c-14.913-23.72-22.791-51.136-22.779-79.287.033-82.142 66.867-148.971 149.046-148.971 39.793.014 77.199 15.531 105.329 43.692 28.128 28.16 43.609 65.592 43.594 105.4-.034 82.149-66.866 148.983-148.983 148.984zm81.721-111.581c-4.479-2.242-26.499-13.075-30.604-14.571-4.105-1.495-7.091-2.241-10.077 2.241-2.986 4.483-11.569 14.572-14.182 17.562-2.612 2.988-5.225 3.364-9.703 1.12-4.479-2.241-18.91-6.97-36.017-22.23C231.8 264.15 222.81 249.484 220.198 245s-.279-6.908 1.963-9.14c2.016-2.007 4.48-5.232 6.719-7.847 2.24-2.615 2.986-4.484 4.479-7.472 1.493-2.99.747-5.604-.374-7.846-1.119-2.241-10.077-24.288-13.809-33.256-3.635-8.733-7.327-7.55-10.077-7.688-2.609-.13-5.598-.158-8.583-.158-2.986.0-7.839 1.121-11.944 5.604-4.105 4.484-15.675 15.32-15.675 37.364.0 22.046 16.048 43.342 18.287 46.332 2.24 2.99 31.582 48.227 76.511 67.627 10.685 4.615 19.028 7.371 25.533 9.434 10.728 3.41 20.492 2.929 28.209 1.775 8.605-1.285 26.499-10.833 30.231-21.295 3.732-10.464 3.732-19.431 2.612-21.298-1.119-1.869-4.105-2.99-8.583-5.232z"/></svg></a></li><li><a target=_blank rel="noopener noreferrer" aria-label="share P5-pipeline-CPU-Design-Document on telegram" href="https://telegram.me/share/url?text=P5-pipeline-CPU-Design-Document&amp;url=https%3a%2f%2fcoder0xe.github.io%2fposts%2fp5-pipeline-cpu-design-document%2f"><svg viewBox="2 2 28 28" height="30" width="30" fill="currentColor"><path d="M26.49 29.86H5.5a3.37 3.37.0 01-2.47-1 3.35 3.35.0 01-1-2.47V5.48A3.36 3.36.0 013 3 3.37 3.37.0 015.5 2h21A3.38 3.38.0 0129 3a3.36 3.36.0 011 2.46V26.37a3.35 3.35.0 01-1 2.47 3.38 3.38.0 01-2.51 1.02zm-5.38-6.71a.79.79.0 00.85-.66L24.73 9.24a.55.55.0 00-.18-.46.62.62.0 00-.41-.17q-.08.0-16.53 6.11a.59.59.0 00-.41.59.57.57.0 00.43.52l4 1.24 1.61 4.83a.62.62.0 00.63.43.56.56.0 00.4-.17L16.54 20l4.09 3A.9.9.0 0021.11 23.15zM13.8 20.71l-1.21-4q8.72-5.55 8.78-5.55c.15.0.23.0.23.16a.18.18.0 010 .06s-2.51 2.3-7.52 6.8z"/></svg></a></li><li><a target=_blank rel="noopener noreferrer" aria-label="share P5-pipeline-CPU-Design-Document on ycombinator" href="https://news.ycombinator.com/submitlink?t=P5-pipeline-CPU-Design-Document&u=https%3a%2f%2fcoder0xe.github.io%2fposts%2fp5-pipeline-cpu-design-document%2f"><svg width="30" height="30" viewBox="0 0 512 512" fill="currentColor"><path d="M449.446.0C483.971.0 512 28.03 512 62.554V449.446C512 483.97 483.97 512 449.446 512H62.554C28.03 512 0 483.97.0 449.446V62.554C0 28.03 28.029.0 62.554.0H449.446zM183.8767 87.9921h-62.034L230.6673 292.4508V424.0079h50.6655V292.4508L390.1575 87.9921H328.1233L256 238.2489z"/></svg></a></li></ul></footer></article></main><footer class=footer><span>&copy; 2026 <a href=https://coder0xe.github.io/>coder0xe's blog</a></span> ·
+<span>Powered by
+<a href=https://gohugo.io/ rel="noopener noreferrer" target=_blank>Hugo</a> &
+<a href=https://github.com/adityatelange/hugo-PaperMod/ rel=noopener target=_blank>PaperMod</a></span></footer><a href=#top aria-label="go to top" title="Go to Top (Alt + G)" class=top-link id=top-link accesskey=g><svg viewBox="0 0 12 6" fill="currentColor"><path d="M12 6H0l6-6z"/></svg>
+</a><script>let menu=document.getElementById("menu");if(menu){const e=localStorage.getItem("menu-scroll-position");e&&(menu.scrollLeft=parseInt(e,10)),menu.onscroll=function(){localStorage.setItem("menu-scroll-position",menu.scrollLeft)}}document.querySelectorAll('a[href^="#"]').forEach(e=>{e.addEventListener("click",function(e){e.preventDefault();var t=this.getAttribute("href").substr(1);window.matchMedia("(prefers-reduced-motion: reduce)").matches?document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView():document.querySelector(`[id='${decodeURIComponent(t)}']`).scrollIntoView({behavior:"smooth"}),t==="top"?history.replaceState(null,null," "):history.pushState(null,null,`#${t}`)})})</script><script>var mybutton=document.getElementById("top-link");window.onscroll=function(){document.body.scrollTop>800||document.documentElement.scrollTop>800?(mybutton.style.visibility="visible",mybutton.style.opacity="1"):(mybutton.style.visibility="hidden",mybutton.style.opacity="0")}</script><script>document.getElementById("theme-toggle").addEventListener("click",()=>{const e=document.querySelector("html");e.dataset.theme==="dark"?(e.dataset.theme="light",localStorage.setItem("pref-theme","light")):(e.dataset.theme="dark",localStorage.setItem("pref-theme","dark"))})</script><script>document.querySelectorAll("pre > code").forEach(e=>{const n=e.parentNode.parentNode,t=document.createElement("button");t.classList.add("copy-code"),t.innerHTML="copy";function s(){t.innerHTML="copied!",setTimeout(()=>{t.innerHTML="copy"},2e3)}t.addEventListener("click",t=>{if("clipboard"in navigator){navigator.clipboard.writeText(e.textContent),s();return}const n=document.createRange();n.selectNodeContents(e);const o=window.getSelection();o.removeAllRanges(),o.addRange(n);try{document.execCommand("copy"),s()}catch{}o.removeRange(n)}),n.classList.contains("highlight")?n.appendChild(t):n.parentNode.firstChild==n||(e.parentNode.parentNode.parentNode.parentNode.parentNode.nodeName=="TABLE"?e.parentNode.parentNode.parentNode.parentNode.parentNode.appendChild(t):e.parentNode.appendChild(t))})</script></body></html>
