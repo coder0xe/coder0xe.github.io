@@ -1,0 +1,121 @@
+name: Deploy Hugo Site (Multi-Branch)
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - develop
+      - "feature/**"
+      - "release/**"
+      - "hotfix/**"
+  delete:
+    branches:
+      - dev
+      - develop
+      - "feature/**"
+      - "release/**"
+      - "hotfix/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.event_name != 'delete'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: "0.155.3"
+          extended: true
+
+      - name: Compute Deploy Variables
+        id: vars
+        shell: bash
+        run: |
+          BRANCH="${GITHUB_REF_NAME}"
+          SAFE_BRANCH="$(echo "$BRANCH" | tr '/_' '--' | tr -cd '[:alnum:]-')"
+
+          if [[ "$BRANCH" == "main" ]]; then
+            echo "is_main=true" >> "$GITHUB_OUTPUT"
+            echo "target_folder=." >> "$GITHUB_OUTPUT"
+            echo "base_url=https://coder0xe.github.io/" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_main=false" >> "$GITHUB_OUTPUT"
+            echo "target_folder=previews/$SAFE_BRANCH" >> "$GITHUB_OUTPUT"
+            echo "base_url=https://coder0xe.github.io/previews/$SAFE_BRANCH/" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        run: hugo --minify --baseURL "${{ steps.vars.outputs.base_url }}"
+
+      - name: Deploy Production (main)
+        if: steps.vars.outputs.is_main == 'true'
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: gh-pages
+          folder: public
+          clean: true
+          clean-exclude: previews
+          single-commit: true
+
+      - name: Deploy Preview (non-main)
+        if: steps.vars.outputs.is_main == 'false'
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: gh-pages
+          folder: public
+          target-folder: ${{ steps.vars.outputs.target_folder }}
+          clean: true
+          single-commit: true
+
+  cleanup-preview:
+    if: github.event_name == 'delete' && github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          fetch-depth: 0
+        continue-on-error: true
+
+      - name: Remove Preview Folder
+        shell: bash
+        run: |
+          if [[ ! -d ".git" ]]; then
+            echo "gh-pages branch does not exist yet, skip cleanup."
+            exit 0
+          fi
+
+          BRANCH="${{ github.event.ref }}"
+          SAFE_BRANCH="$(echo "$BRANCH" | tr '/_' '--' | tr -cd '[:alnum:]-')"
+          TARGET="previews/$SAFE_BRANCH"
+
+          if [[ ! -d "$TARGET" ]]; then
+            echo "No preview folder to clean: $TARGET"
+            exit 0
+          fi
+
+          rm -rf "$TARGET"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: remove preview for deleted branch ${BRANCH}" || exit 0
+          git push
