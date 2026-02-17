@@ -1,4 +1,4 @@
----
+﻿---
 title: OS-lab1课下基础
 date: 2024-03-18T10:30:58+08:00
 updated:
@@ -32,7 +32,7 @@ tags: ['Mar']
 
 ​	bootloader需要正确地找到内核并加载执行。bootloader的实现依赖于CPU的体系结构，分为stage1，stage2两个部分。
 
-![image-20240318110032974](./../img/image-20240318110032974.png)
+![image-20240318110032974](/img/image-20240318110032974.png)
 
 ### 1.3 QEMU中操作系统的启动
 
@@ -56,7 +56,7 @@ tags: ['Mar']
 
   
 
-![image-20240320221446864](./../img/image-20240320221446864.png)
+![image-20240320221446864](/img/image-20240320221446864.png)
 
 ​	以简单的代码为示例
 
@@ -82,7 +82,7 @@ int main()
 
 > ELF 官方文档中对于section segment的解释
 
-![image-20240320224950997](./../img/image-20240320224950997.png)
+![image-20240320224950997](/img/image-20240320224950997.png)
 
 * 所谓section与segment是同一数据的两种视图
 
@@ -94,7 +94,7 @@ int main()
 
 * 段头表(Program header table)：包含程序中各个段(segment)的信息，在运行时使用
 
-![image-20240320234355920](./../img/image-20240320234355920.png)
+![image-20240320234355920](/img/image-20240320234355920.png)
 
 * 编译->链接->运行
 * 编译：源代码->可执行代码（机器码，目标文件或可执行文件中就是机器码）
@@ -110,7 +110,7 @@ int main()
 
 * 使用-c选项进行编译
 
-  ![image-20240321095810527](./../img/image-20240321095810527.png)
+  ![image-20240321095810527](/img/image-20240321095810527.png)
 
   通过```readelf -S <filename>```对产生的可重定向文件(.o)进行查看，可以发现程序经过编译之后已经被划分为了不同的段，其中有我们熟知的```.text```，```.data```等，这就是编译产生的不同类别的section。```.text```中的内容为可执行代码，即机器码。```.data```中的内容为在编译阶段中就可以确定的变量值，例如全局变量等。
 
@@ -118,15 +118,15 @@ int main()
 
 * segment中有几种分区，分别存放不同种类的section。常见的有```NOTE segment```和```LOAD segment```。```NOTE segment```中存放了调试的一些信息，例如dwarf或者gnu_version、gnu_hash等，我们常见的.data,.text会被存放在```LOAD segment```中。下面是对前程序进行链接后的结果，同样使用readelf查看section信息(其中.note前缀等即为NOTE segment区域)
 
-  ![image-20240321100840972](./../img/image-20240321100840972.png)
+  ![image-20240321100840972](/img/image-20240321100840972.png)
   
 * ps:后续在课件中找到的图
 
-  ![image-20240325173252365](./../img/image-20240325173252365.png)
+  ![image-20240325173252365](/img/image-20240325173252365.png)
 
 #### 2.2.1 ELF结构
 
-![image-20240321161420257](./../img/image-20240321161420257.png)
+![image-20240321161420257](/img/image-20240321161420257.png)
 
 主要结构有ELF头，段头表，节头表等，我们可以结合课程组给出的elf.h来理解各个部分的主要结构。
 
@@ -255,17 +255,17 @@ int readelf(const void *binary, size_t size) {
 
   **那么void*所指代的元素类型占多大字节？在GNU中规定占一个字节**
 
-  ![image-20240321165028139](./../img/image-20240321165028139.png)
+  ![image-20240321165028139](/img/image-20240321165028139.png)
 
 * 可以使用系统自带的readelf命令进行验证
 
   * ```readelf -S <file> 查看节信息```
     
-    ![image-20240321165734277](./../img/image-20240321165734277.png)
+    ![image-20240321165734277](/img/image-20240321165734277.png)
 
   * ```readelf -l <file> 查看段信息```
     
-    ![image-20240321165804280](./../img/image-20240321165804280.png)
+    ![image-20240321165804280](/img/image-20240321165804280.png)
   
     * Offset代表该段数据相对于ELF文件的偏移
     * VirtAddr代表该段数据最终被加载到内存的位置
@@ -282,7 +282,7 @@ int readelf(const void *binary, size_t size) {
 
 * MIPS体系结构中，4GB虚拟地址空间被划分为四个部分
 
-  ![image-20240321174133781](./../img/image-20240321174133781.png)
+  ![image-20240321174133781](/img/image-20240321174133781.png)
 
   * kuseg：用户态下唯一可用的地址空间（内核态下也可使用这段地址空间）。需要通过 MMU中的 TLB 进行虚拟地址到物理地址的变换。对这段 地址的==存取都会通过cache==。
 
@@ -298,7 +298,7 @@ int readelf(const void *binary, size_t size) {
 
 ​	在链接阶段引入Linker Script，Linker Script中记录了各个节应该如何映射到段，以及各个段应该被加载到的位置，这样就可以把我们的内核代码加载到正确的位置上。
 
-![image-20240322110321394](./../img/image-20240322110321394.png)
+![image-20240322110321394](/img/image-20240322110321394.png)
 
 ​	上图即为操作系统实验中定义的kseg0内存划分，lab1练习题中只需简单的将.text段放在Kernel Text区域，将.data和.bss段放在.text后面即可。
 
@@ -484,25 +484,25 @@ void vprintfmt(fmt_callback_t out, void *data, const char *fmt, va_list ap)
 
 ​	对于fmt的字符串格式
 
-![image-20240323111757887](./../img/image-20240323111757887.png)
+![image-20240323111757887](/img/image-20240323111757887.png)
 
 ​	对格式字符串中各项进行解释
 
 * flag
 
-  ![image-20240323111854505](./../img/image-20240323111854505.png)
+  ![image-20240323111854505](/img/image-20240323111854505.png)
 
 * width
 
-  ![image-20240323111916064](./../img/image-20240323111916064.png)
+  ![image-20240323111916064](/img/image-20240323111916064.png)
 
 * length
 
-  ![image-20240323111946878](./../img/image-20240323111946878.png)
+  ![image-20240323111946878](/img/image-20240323111946878.png)
 
 * specifier
 
-  ![image-20240323112007766](./../img/image-20240323112007766.png)
+  ![image-20240323112007766](/img/image-20240323112007766.png)
 
 ​	当我们读到%后对后面字符串进行解析即可
 
@@ -666,25 +666,25 @@ void vprintfmt(fmt_callback_t out, void *data, const char *fmt, va_list ap) {
 ## 0.问题发现
 
  在完成lab1课下代码后，我尝试进行make run，发现不断输出`init.c: mips_init() is called`，如下图
-![image.png](./../img/image.png)
+![image.png](/img/image.png)
 ​ 我认为是代码出现了问题，果断求助助教。在助教的帮助下，我逐渐理解了这个问题。
 
 ## 1.分析代码
 
  通过阅读代码，我们知道，输出这个字符串是start.S调用init.c中函数mips_init得到，由于不方便展示源码，**这里只指出我是通过j指令完成了跳转，强调这一点是有必要的，如果使用jal进行跳转就不会出现这种状况，jal指令会改变$ra寄存器的值，与后边的论述矛盾。** 通过对我们make的内核mos进行gdb调试，发现在程序执行完mips_init()之后总是跳回到start.S的第一行代码，如下图。
-![52fd8e355dba9fe1c58332de8bdb6fd.png](./../img/52fd8e355dba9fe1c58332de8bdb6fd.png)
+![52fd8e355dba9fe1c58332de8bdb6fd.png](/img/52fd8e355dba9fe1c58332de8bdb6fd.png)
 ​ 通过上学期的计组知识，我们知道，从被调用者跳回到调用者是通过指令`jr $ra`实现的，这一点我们可以在gdb中展示汇编代码得到验证(gdb模式下直接输入disassemble)，如下图。
-![2d60f5d8497ef92340b385af439163f.png](./../img/2d60f5d8497ef92340b385af439163f.png)
+![2d60f5d8497ef92340b385af439163f.png](/img/2d60f5d8497ef92340b385af439163f.png)
 ​ 这样问题就转化为`$ra`的值是什么？通过指令`i registers`可以查看各个寄存器的值。我们得到`$ra`寄存器的值如下图
-![981d818d3da49ea7a2a3e0e1a925e4f.png](./../img/981d818d3da49ea7a2a3e0e1a925e4f.png)
+![981d818d3da49ea7a2a3e0e1a925e4f.png](/img/981d818d3da49ea7a2a3e0e1a925e4f.png)
 ​ 同时我们可以发现，start.S中第一条代码的地址即为此地址。
-![385fa0c26be69d5e844ce3c4c662318.png](./../img/385fa0c26be69d5e844ce3c4c662318.png)
+![385fa0c26be69d5e844ce3c4c662318.png](/img/385fa0c26be69d5e844ce3c4c662318.png)
 ​ 但是在我们的代码中并没有存在对`$ra`赋值的操作，也就是说问题**转化为`$ra`初值是如何得到的？**
 
 ## 2.bootloader
 
  通过以上的分析，我们知道在内核相关代码中，我们并没有对`$ra`的值有写操作，此时将目光放在启动内核之前的硬件初始化阶段，即`bootloader`。直接`make dbg`进入调试，我们会发现输出如下
-![e7a3a409b5977724741fc94ee3d2d08.png](./../img/e7a3a409b5977724741fc94ee3d2d08.png)
+![e7a3a409b5977724741fc94ee3d2d08.png](/img/e7a3a409b5977724741fc94ee3d2d08.png)
 ​ **这里的0xbfc00000即为bootloader的地址**，gdb并不支持显示调试信息，此时我们可以使用汇编级调试，通过运行
 
 ```
@@ -692,23 +692,24 @@ set disassemble-nextline-on
 ```
 
  进入汇编调试模式，之后`ni`单步调试，我们发现在bootloader中进行了**对寄存器的赋初值操作**，这里只展示我们关心的对于`$ra`寄存器的赋值操作，如下图
-![b2ac38bbfc263bb6210eae09c74cb33.png](./../img/b2ac38bbfc263bb6210eae09c74cb33.png)
+![b2ac38bbfc263bb6210eae09c74cb33.png](/img/b2ac38bbfc263bb6210eae09c74cb33.png)
 ​ 以上两条指令即为对`$ra`寄存器的赋值操作，**更加值得注意的是下面两条汇编代码**
-![ac0db2ef1f430b125c260dc7cfc89b4.png](./../img/ac0db2ef1f430b125c260dc7cfc89b4.png)
+![ac0db2ef1f430b125c260dc7cfc89b4.png](/img/ac0db2ef1f430b125c260dc7cfc89b4.png)
 ​ 我们发现在完成硬件相关初始化之后，跳转到了内核入口，在实践中印证了指导书中的内容
-![image.png](./../img/image-1711121183635-1.png)
+![image.png](/img/image-1711121183635-1.png)
 ​ 现在我们已经知道了`$ra`寄存器是在bootloader中进行赋初值，**但是，bootloader是如何知道内核入口(kernel_entry)在哪里呢，即bootloader是如何知道要给`$ra`赋这个地址的?这与我们的实验环境QEMU有关。**
 
 ## 3.QEMU
 
  我们知道，实验中我们使用了QEMU自带的bootloader，实际上，qemu也处理了一部分软件流程，对bootloader进行了简化，这在init.c的注释部分给出了提示。
-![8e10c1cbc775fdf42f1c9a1b4d733fd.png](./../img/8e10c1cbc775fdf42f1c9a1b4d733fd.png)
+![8e10c1cbc775fdf42f1c9a1b4d733fd.png](/img/8e10c1cbc775fdf42f1c9a1b4d733fd.png)
 ​ 直接去盒一下github上的源码！
-![6e4d8d8a263a601cf9f2f02eca49203.png](./../img/6e4d8d8a263a601cf9f2f02eca49203.png)
+![6e4d8d8a263a601cf9f2f02eca49203.png](/img/6e4d8d8a263a601cf9f2f02eca49203.png)
 ​ 在源码中我们找到了对`$ra`赋值操作，进一步的，查找`kernel_entry`是如何得来的？进一步查阅源码，可以发现
-![3c4bffe45971963326277f98a06882a.png](./../img/3c4bffe45971963326277f98a06882a.png)
+![3c4bffe45971963326277f98a06882a.png](/img/3c4bffe45971963326277f98a06882a.png)
 ​ 同时源码中给出了关于load_kernel()函数的定义，这里不再关心，**我们可以得到结论：对`$ra`寄存器的赋值是在bootloader阶段由QEMU辅助完成的！**
 
 ## 4. 总结
 
  此篇讨论帖讨论了关于`$ra`寄存器初值的问题以及bootloader和QEMU的一些思考，如有错误敬请指正，这里特别感谢助教的指引和帮助！
+

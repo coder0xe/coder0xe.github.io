@@ -1,4 +1,4 @@
----
+﻿---
 title: OS:lab2课下基础
 date: 2024-03-31T19:54:28+08:00
 type:
@@ -38,7 +38,7 @@ tags: ['Mar']
   * 通过Cache访存
   * ```0x0000_0000 - 0x7fff_ffff```
 
-![image-20240331202331322](./../img/image-20240331202331322.png)
+![image-20240331202331322](/img/image-20240331202331322.png)
 
 ### 2.内核程序启动
 
@@ -222,7 +222,7 @@ void page_init(void) {
 
 * 实验中使用链表宏主要是对空闲页面的页面控制块（Page结构体）进行管理，每一个页面控制块可以分为链接域(pp_link)和数据域(pp_ref)(**即代码中的field为pp_link**)。链接域pp_link是一个结构体，其中包含两个指针，```struct Page *le_next```，```struct Page **le_prev```。
 
-  ![image-20240401082058390](./../img/image-20240401082058390.png)
+  ![image-20240401082058390](/img/image-20240401082058390.png)
 
 * ```struct Page* le_next```是指向下一个节点的指针
 
@@ -288,7 +288,7 @@ void mips_init(u_int argc, char **argv, char **penv, u_int ram_low_size) {
 
 * 总体来说实现了指导书中图左半部分
 
-  ![image-20240401101706515](./../img/image-20240401101706515.png)
+  ![image-20240401101706515](/img/image-20240401101706515.png)
 
 ## 二.虚拟内存管理
 
@@ -298,7 +298,7 @@ void mips_init(u_int argc, char **argv, char **penv, u_int ram_low_size) {
 
 * 两级页表解决了一级页表当页数过多时占用内存空间过大的问题，解决方法是将一级页表再分页，建立起页目录，每次只将原页表中的一部分拿到内存中
 
-  ![image-20240401111157210](./../img/image-20240401111157210.png)
+  ![image-20240401111157210](/img/image-20240401111157210.png)
 
 * **一级页表:Page Dictionary**
 
@@ -320,7 +320,7 @@ void mips_init(u_int argc, char **argv, char **penv, u_int ram_low_size) {
 
 * 通过TLB访存过程如下图
 
-  ![image-20240401105104383](./../img/image-20240401105104383.png)
+  ![image-20240401105104383](/img/image-20240401105104383.png)
 
 ### 2.页表相关函数
 
@@ -484,13 +484,13 @@ void page_remove(Pde *pgdir, u_int asid, u_long va) {
 
 ​	在MIPS-4Kc中，每一个TLB表项都包含一组Key以及两组Data，其中，一组Key由EntryHi保存，两组Data分别由EntryLo0，EntryLo1保存。回想起上学期计组课程，我们的TLB表项中似乎只是一组Key对应一组Data?为什么在MIPS-4Kc中会存在一组Key对应两组Data呢？观察他们的存储方式
 
-![image-20240401192153423](./../img/image-20240401192153423.png)
+![image-20240401192153423](/img/image-20240401192153423.png)
 
 ​	我们知道，**VPN有20位，然而在Key中只有高19位**，这样自然对应着两个物理页，在EntryLo0中保存偶数页的页号，在EntryLo1中保存奇数页的页号，并根据VPN最低位判断奇偶页。（CPU发送虚拟地址时，先访问TLB，一下拿到两个数据）
 
 * 内存管理寄存器
 
-  ![image-20240401194621876](./../img/image-20240401194621876.png)
+  ![image-20240401194621876](/img/image-20240401194621876.png)
 
 * **Key:EntryHi**
   * **VPN**：Virtual Page Number，当TLB缺失时，VPN自动由硬件填充为对应虚拟地址的虚页号
@@ -661,7 +661,7 @@ void page_remove(Pde *pgdir, u_int asid, u_long va) {
     * 然后建立起va和刚分配的物理页面之间的映射(page_insert)
     * 对原表项进行无效化(page_invalidate)
 
-![image-20240401201850910](./../img/image-20240401201850910.png)
+![image-20240401201850910](/img/image-20240401201850910.png)
 
 ## 四.上机前复习
 
@@ -792,3 +792,4 @@ u_long va = (i << 22) | (j << 12) | offset;
 #### 4.3总结
 
 ​	从lab2以后对于操作系统的理解难度变得更高，更加印证了陈奕帅学长的话：“学好OS就要理解好OS的代码”，诚哉斯言！
+

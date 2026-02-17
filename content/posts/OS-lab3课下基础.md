@@ -1,4 +1,4 @@
----
+﻿---
 title: OS:lab3课下基础
 date: 2024-04-08T08:20:28+08:00
 type:
@@ -222,7 +222,7 @@ static int asid_alloc(u_int *asid) {
 >
 >   * 复制到对应的地址空间memcpy，这里在虚拟地址空间中pages和envs存储位置在mmu.h中定义，如下图所示
 >
->     ![image-20240421224528267](./../img/image-20240421224528267.png)
+>     ![image-20240421224528267](/img/image-20240421224528267.png)
 >
 >   * 故只需要从UTOP复制到UVPT
 >
@@ -232,7 +232,7 @@ static int asid_alloc(u_int *asid) {
 >
 >   * UVPT往上到ULIM之间是进程自己的页表
 >
->     ![image-20240421230919555](./../img/image-20240421230919555.png)
+>     ![image-20240421230919555](/img/image-20240421230919555.png)
 >
 > * 将UVPT处的页表项设置为只读权限，故用户进程可以通过UVPT读自己的页表
 
@@ -325,7 +325,7 @@ int env_alloc(struct Env **new, u_int parent_id) {
 
 * cp0_status：
 
-  ![image-20240421235817681](./../img/image-20240421235817681.png)
+  ![image-20240421235817681](/img/image-20240421235817681.png)
 
   * IE位表示中断是否开启
 
@@ -518,7 +518,7 @@ void env_run(struct Env *e) {
 
 > 回想上学期计组P7内容
 
-![image-20240422111134009](./../img/image-20240422111134009.png)
+![image-20240422111134009](/img/image-20240422111134009.png)
 
 ### 2.1 异常的分发
 
@@ -781,7 +781,7 @@ void schedule(int yield) {
 
 ​	我们在lab3中学习了进程管理的相关内容，本实验中完成的功能可以由下图概括
 
-![image-20240422193008075](./../img/image-20240422193008075.png)
+![image-20240422193008075](/img/image-20240422193008075.png)
 
 * ```exception_handlers```数组为**异常向量组**，负责分发异常。我们主要涉及到的是0号异常处理函数(中断处理函数)```handle_int```，1号异常处理函数```handle_mod```，2号/3号处理函数```handle_tlb```。初始化结束后，若有异常产生，则其对应的异常处理函数执行
 
@@ -815,4 +815,5 @@ void schedule(int yield) {
   
 
   ​	
+
 

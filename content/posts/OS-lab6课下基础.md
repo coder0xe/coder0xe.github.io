@@ -1,4 +1,4 @@
----
+﻿---
 title: OS:lab6课下基础
 date: 2024-06-08T18:27:50+08:00
 type:
@@ -86,9 +86,9 @@ err:
 
 * **通过管道pipe进行共享的实际上是共享页面机制PTE_LIBRARY**
 
-![image-20240610195357171](./../img/image-20240610195357171.png)
+![image-20240610195357171](/img/image-20240610195357171.png)
 
-![image-20240610195405221](./../img/image-20240610195405221.png)
+![image-20240610195405221](/img/image-20240610195405221.png)
 
 ### 1.3 管道的读写
 
@@ -533,4 +533,5 @@ int parsecmd(char **argv, int *rightpipe) {
 	return argc;
 }
 ```
+
 

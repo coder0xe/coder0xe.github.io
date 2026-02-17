@@ -1,4 +1,4 @@
----
+﻿---
 title: OS:lab1实验报告
 date: 2024-03-24T21:02:45+08:00
 updated:
@@ -46,7 +46,7 @@ tags: ['Mar']
 
   如下图（部分）
 
-  ![image-20240325205255571](./../img/image-20240325205255571.png)
+  ![image-20240325205255571](/img/image-20240325205255571.png)
 
 * **使用MIPS交叉编译工具链进行编译**
 
@@ -55,7 +55,7 @@ tags: ['Mar']
   git@22373362:~/compile $ mips-linux-gnu-objdump -DS mips_hello.o > mips_log
   ```
 
-  ![image-20240325205459358](./../img/image-20240325205459358.png)
+  ![image-20240325205459358](/img/image-20240325205459358.png)
 
 ## Thinking1.2
 
@@ -63,21 +63,21 @@ tags: ['Mar']
 
   解析结果如下图
 
-  ![image-20240325210255324](./../img/image-20240325210255324.png)
+  ![image-20240325210255324](/img/image-20240325210255324.png)
 
 * **也许你会发现我们编写的readelf程序是不能解析readelf文件本身的，而我们刚才介绍的系统工具readelf则可以解析，这是为什么呢？(提示：尝试使用readelf-h，并阅读tools/readelf目录下的Makefile，观察readelf与hello的不同）**
 
   * hello
 
-    ![image-20240325210724269](./../img/image-20240325210724269.png)
+    ![image-20240325210724269](/img/image-20240325210724269.png)
 
   * readelf
 
-    ![image-20240325210939868](./../img/image-20240325210939868.png)
+    ![image-20240325210939868](/img/image-20240325210939868.png)
 
   * **通过观察两个可执行文件的ELF头可以发现，hello可执行文件为ELF32类型，而readelf为ELF64类型，而我们编写的readelf.c文件只支持解析ELF32格式的文件，只使用了ELF32类型的结构体**
 
-    ![image-20240325212841144](./../img/image-20240325212841144.png)
+    ![image-20240325212841144](/img/image-20240325212841144.png)
 
   * Makefile
 
@@ -167,7 +167,7 @@ int readelf(const void *binary, size_t size) {
 
   **那么void*所指代的元素类型占多大字节？在GNU中规定占一个字节**
 
-  ![image-20240321165028139](./../img/image-20240321165028139.png)
+  ![image-20240321165028139](/img/image-20240321165028139.png)
 
 ### printk
 
@@ -246,4 +246,5 @@ void vprintfmt(fmt_callback_t out, void *data, const char *fmt, va_list ap)
 ## 实验体会与感想
 
 ​	Lab1主要让我们学习**操作系统启动的基本流程**、掌握**ELF文件的结构和功能**，以及最终**完成一个`printk`函数的书写**。在完成实验的过程中，我逐步学习到有关操作系统的启动和ELF文件的有关知识，其中在printk函数的编写过程中我复习了C语言中有关指针的知识，并知道了在GNU标准中void*所指向的元素类型所占大小为一个字节。在完成实验之后，通过对```make run```中不断输出的现象进探究，我了解到在QEMU环境中，在bootloader阶段会由QEMU辅助进行```$ra```等寄存器的赋初值行为，同时学习到简单的gdb调试汇编代码方法。
+
 

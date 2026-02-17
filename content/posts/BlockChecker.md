@@ -1,4 +1,4 @@
----
+﻿---
 title: 'P1_L1_BlockChecker'
 date: 2023-10-13T01:18:00+08:00
 updated:
@@ -45,7 +45,7 @@ tags: ['Oct']
 
 #### 2.状态转移图
 
-![image-20231012005200540](./../img/P1_state.png)
+![image-20231012005200540](/img/P1_state.png)
 
 **解释**：
 
@@ -334,3 +334,4 @@ endmodule
 ​	
 
 #### 5.特别致谢hugo && xmgg 帮忙看我的bug ```QAQ```
+

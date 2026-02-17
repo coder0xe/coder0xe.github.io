@@ -1,4 +1,4 @@
----
+﻿---
 title: OSpre——工具介绍
 date: 2024-02-21T15:07:56+08:00
 updated:
@@ -222,7 +222,7 @@ Git 中的三种储存状态分别是：工作区（Working Directory）、暂�
 
 一般来说，一个项目在 Git 中是以目录的形式存在的，这个目录包含了**工作区**（`.git` 子目录之外的内容）和**储存库**（`.git` 子目录）。工作区可以理解为“目前正在编辑的版本”，储存库储存在一个隐藏目录 `.git` 中（因为它以 `.` 开头，所以是隐藏的），用来存放提交过的所有版本的内容及其联系。**暂存区**存放了已经确定修改但尚未提交的文件。暂存区的信息理论上也储存在 `.git` 目录中，但是在用途上和储存库有区别，因此和储存库的概念区分开来。有关暂存区的详细概念，可以在下一节中了解到。下图是三种储存位置的转移关系，有关图中的操作，在后文中都有介绍。
 
-![git-areas](./../img/linux-git-areas.png)
+![git-areas](/img/linux-git-areas.png)
 
 #### Git 中文件的四种储存状态
 
@@ -235,7 +235,7 @@ Git 中的三种储存状态分别是：工作区（Working Directory）、暂�
 
 四种状态的转换关系如下图所示（图片来自 [Pro Git](https://git-scm.com/book/zh/v2)）：
 
-![Git Change](./../img/linux-git-change.jpg)
+![Git Change](/img/linux-git-change.jpg)
 
 #### Git 常用命令
 
@@ -463,4 +463,5 @@ done
 
 * 对命令进行连接，上一个命令的输出为下一个命令的输入
 * ```command1|command2|command3```
+
 

@@ -1,4 +1,4 @@
----
+﻿---
 title: OS-lab0-实验报告
 date: 2024-03-13T22:59:16+08:00
 updated:
@@ -24,15 +24,15 @@ tags: ['Mar']
 
 ​	不一样。第一次执行add命令之前的status是未跟踪文件。第二次执行``cat``命令的status为尚未暂存以备提交的变更，并提示修改：README.txt。原因是第一次时，文件未被```add```过，即为未跟踪文件(```Untracked file```)，第二次查看status时，README.txt已经被add过，即已经放入暂存区，故只提示修改。
 
-![image-20240313232853804](./../img/image-20240313232853804.png)
+![image-20240313232853804](/img/image-20240313232853804.png)
 
-![image-20240313232939134](./../img/image-20240313232939134.png)
+![image-20240313232939134](/img/image-20240313232939134.png)
 
 ## Thinking 0.2
 
 * **思考一下箭头中的add thefile、stage thefile和 commit分别对应的是Git里的哪些命令呢？**
 
-![image-20240313233546782](./../img/image-20240313233546782.png)
+![image-20240313233546782](/img/image-20240313233546782.png)
 
 * **add the file : git add && git commit **
 * **stage the file : git add **
@@ -82,7 +82,7 @@ git reset --hard <hash-value>
 
 ​	输出如下图
 
-![image-20240314000539680](./../img/image-20240314000539680.png)
+![image-20240314000539680](/img/image-20240314000539680.png)
 
 ​	**可以发现的区别为：关于重定向 > 将标准输出重定向到文件，但会覆盖文件原来的内容，>> 为将标准输出追加到文件之后**
 
@@ -90,11 +90,11 @@ git reset --hard <hash-value>
 
 * **command文件内容如下：主要利用输出重定向以及追加(>>)将命令输出到test文件中**
 
-  ![image-20240314003122927](./../img/image-20240314003122927.png)
+  ![image-20240314003122927](/img/image-20240314003122927.png)
 
 * **result文件内容如下：将test脚本运行产生结果输出到result文件中**
 
-  ![image-20240314003232412](./../img/image-20240314003232412.png)
+  ![image-20240314003232412](/img/image-20240314003232412.png)
 
 * **分析**
 
@@ -111,14 +111,14 @@ git reset --hard <hash-value>
     echo `echo Shell Start` 
     ```
 
-    ![image-20240314003804024](./../img/image-20240314003804024.png)
+    ![image-20240314003804024](/img/image-20240314003804024.png)
 
     ```
     echo echo $c>file1
     echo `echo $c>file1`
     ```
 
-    ![image-20240314004138057](./../img/image-20240314004138057.png)
+    ![image-20240314004138057](/img/image-20240314004138057.png)
 
     * 注：当echo命令向文件中写入参数值时，若参数已有一个确定值，则将该值写入，否则会写入空值或不写入
 
@@ -129,3 +129,4 @@ git reset --hard <hash-value>
 ## 实验体会
 
 ​	lab0实验是linux系统的入门实验，是MOS操作系统开发的第一个台阶。在实验构成上内容比较基础，以训练掌握linux的基本工具为主。对于较为灵活的```grep,sed,awk```指令还需要进一步在学习中训练。对于```Makefile```，```shell```脚本的编写让我感受到命令行的便捷性。
+

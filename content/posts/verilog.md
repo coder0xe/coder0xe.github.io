@@ -1,4 +1,4 @@
----
+﻿---
 title: 'verilog'
 date: 2023-10-14T08:22:00+08:00
 updated:
@@ -91,7 +91,7 @@ always@(posedge clk or negedge clr)
 1. 如果在左侧页面没有```Instance and Process```窗口，左上方菜单栏:```View```->```panel```,添加想要查看的窗口
 2. 在```Instance and Process```窗口中展开tb模块，展开uut实例，点击下面的选项，在右侧```Objects```窗口中就会出现此模块中包含的变量，右键变量名，选择```Add to wave window```即可加入到波形图中进行查看。实操如下图所示。
 
-![P1_1](./../img/P1_1.png)
+![P1_1](/img/P1_1.png)
 
 ##### 2.如何显示出表示状态的字符串
 
@@ -112,7 +112,7 @@ end
 
 ​	在波形图中显示的数值默认都是多位二进制，可以点击变量```右键->Radix```，将字符串更改为ASCII表示。
 
-![P1_2](./../img/P1_2.png)
+![P1_2](/img/P1_2.png)
 
 **注意：**
 
@@ -424,4 +424,5 @@ module counts1_while(
         end
 endmodule
 ```
+
 
