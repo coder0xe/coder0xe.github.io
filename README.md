@@ -16,29 +16,81 @@
 ├── themes/PaperMod/        # 主题
 ├── .github/workflows/
 │   └── deploy-pages.yml    # Pages 部署工作流（多分支）
+├── tests/
+│   └── writing-tools.sh    # 本地写作命令测试
+├── Makefile                # 新建、预览和构建命令
 └── hugo.toml               # Hugo 配置
 ```
 
-## 本地开发
+## 本地写作
 
-1. 安装 Hugo Extended（版本建议 `0.155.3` 或以上）。
-2. 在仓库根目录运行:
+### 1. 准备工具
 
-```bash
-hugo server -D
-```
-
-3. 浏览器访问:
-
-```text
-http://localhost:1313/
-```
-
-仅本地构建:
+需要 Hugo Extended `0.155.3` 或更新版本。安装后在仓库根目录检查环境：
 
 ```bash
-hugo --cleanDestinationDir
+brew install hugo
 ```
+
+如果已经安装 Hugo，可直接运行：
+
+```bash
+make doctor
+```
+
+查看仓库提供的全部写作命令：
+
+```bash
+make help
+```
+
+### 2. 新建草稿
+
+`POST` 是文章文件名，建议使用简短的英文或拼音 slug：
+
+```bash
+make new POST=my-first-post
+```
+
+命令会创建 `content/posts/my-first-post.md`，其中 `draft = true`，不会进入生产构建。随后填写标题、描述、标签、分类和正文即可。
+
+文章图片放入 `static/img/`，并在 Markdown 中使用站点绝对路径：
+
+```md
+![图片说明](/img/example.png)
+```
+
+### 3. 实时预览
+
+```bash
+make serve
+```
+
+浏览器访问 `http://localhost:1313/`。保存 Markdown 后，Hugo 会自动重建页面；此命令会显示草稿，并自动跳转到刚修改的页面。
+
+### 4. 发布前检查
+
+完成文章后，将 Front Matter 中的：
+
+```toml
+draft = true
+```
+
+改为：
+
+```toml
+draft = false
+```
+
+然后运行生产构建检查：
+
+```bash
+make check
+```
+
+构建产物位于 `public/`，已被 Git 忽略。提交并推送后，GitHub Actions 会自动发布。
+
+如果不使用 Make，也可以直接运行 `hugo server --buildDrafts --navigateToChanged --cacheDir "$PWD/.hugo_cache"` 预览，或运行 `hugo --gc --minify --cleanDestinationDir --cacheDir "$PWD/.hugo_cache"` 构建。
 
 ## 写作规范（重要）
 
@@ -63,6 +115,7 @@ hugo --cleanDestinationDir
 
 - `date` 使用可解析格式，例如: `2026-02-17T21:00:00+08:00`
 - `tags` / `categories` / `keywords` 使用数组
+- 写作过程中保留 `draft = true`；准备发布时改为 `draft = false`
 
 示例:
 
@@ -70,6 +123,8 @@ hugo --cleanDestinationDir
 ---
 title: "示例文章"
 date: 2026-02-17T21:00:00+08:00
+description: "文章摘要"
+draft: false
 tags: ["Hugo", "Blog"]
 categories: ["技术"]
 keywords: ["hugo", "github pages"]
