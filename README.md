@@ -68,6 +68,8 @@ make serve
 
 浏览器访问 `http://localhost:1313/`。保存 Markdown 后，Hugo 会自动重建页面；此命令会显示草稿，并自动跳转到刚修改的页面。
 
+文章支持 LaTeX 公式。行内公式用 `$E=mc^2$` 或 `\(E=mc^2\)`；独立公式用 `$$` 或 `\[`、`\]` 包围。网页通过 MathJax 渲染公式，首次加载需要能访问 jsDelivr。
+
 ### 4. 发布前检查
 
 完成文章后，将 Front Matter 中的：
