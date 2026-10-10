@@ -2,7 +2,7 @@
 title = '知识杂记'
 date = 2026-08-13T12:36:53+08:00
 description = "记一下每天学到的零碎的知识"
-draft = true
+draft = false
 tags = ["cs"]
 categories = ["笔记"]
 keywords = ["计算机体系结构"]
@@ -70,3 +70,7 @@ keywords = ["计算机体系结构"]
 * SLO = (作用对象，指标，阈值，达标比例)
 * 例如：对于所有的LLM请求，满足TTFT<2s，TPOT<150ms的比例不低于90%
 * P99尾延迟不超过无负载系统中单独执行时延的5倍
+
+## RSS
+
+* RSS即为Resident Set Size，表示进程在内存中驻留页面的大小
