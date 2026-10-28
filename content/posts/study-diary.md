@@ -74,3 +74,24 @@ keywords = ["计算机体系结构"]
 ## RSS
 
 * RSS即为Resident Set Size，表示进程在内存中驻留页面的大小
+
+## Cache
+
+> 查看硬件架构(socket, numa)指令：lscpu, numactl --hardware
+
+* L1 I/D 1/32MB 每个physical core独占
+* L2 1MB 每个physical core 独占
+* LLC 22MB每个socket共享
+* socket是主板上的CPU插槽，每个能插一块CPU芯片，通常一个socket就是一个numa
+* numa：非统一内存访问，通过内存控制器访问本地内存，速度更快，访问远程内存需要经过其他CPU，速度更慢
+
+## SMT
+
+* SMT即同时多线程，在一个支持硬件多线程(多组寄存器资源)的physical core上混合运行多个线程
+
+## peak/avg估算
+
+* 假设一段$\Delta t$时间内CPU util是5%，可以假设并发sandbox中peak占5%，avg占95%
+  $$
+    \frac{1 * 5 * \Delta t + 0 * 95 * \Delta t}{100 * \Delta t} = 5\%
+  $$
