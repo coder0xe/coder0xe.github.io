@@ -55,7 +55,17 @@ keywords = []
 
 * pause：释放内存和CPU
 
+## TIDESAND: PERFORMANCE-ACCURATE SANDBOX MULTIPLEXING  FOR LLM AGENTS
 
+* benchmark：
+  * terminal-bench science：专门评测科研工作流，覆盖生命、物理、地球、数学和工程科学，1-4 CPUs，2-16GB
+  * terminal-bench 4.0（其中有GPU任务，要求要有H100）
+  * AlgoTune
+* setup：sandboxes cgroup 56 cores，112 GiB
+* 用的不是sandbox/core，用的是到达率
+  * AlgoTune：100 sandboxes，15s
+  * Terminal-bench：400 sandboxes，3s
+  * Terminal0-bench Science：100sandboxes，15s
 
 
 

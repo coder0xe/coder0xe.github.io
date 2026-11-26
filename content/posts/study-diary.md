@@ -93,5 +93,21 @@ keywords = ["计算机体系结构"]
 
 * 假设一段$\Delta t$时间内CPU util是5%，可以假设并发sandbox中peak占5%，avg占95%
   $$
-    \frac{1 * 5 * \Delta t + 0 * 95 * \Delta t}{100 * \Delta t} = 5\%
+  \frac{1 * 5 * \Delta t + 0 * 95 * \Delta t}{100 * \Delta t} = 5\%
   $$
+
+## Agentic RL
+
+* Agentic RL：模型执行一个任务，结束后对任务进行打分，给出reward，再用执行过程中的rollout（traj）和reward对模型进行训练，更新模型权重
+
+* RL训练场景下会同时启动大量sandbox，用来并行执行多个任务或者同一任务的多次尝试，相同case的不同rollout也要启动多个sandbox，是一个高密sandbox场景
+
+* 典型的Agentic RL工作流如下
+
+  ![RL](https://raw.githubusercontent.com/coder0xe/Picture-Bed/main/img/image-20261106145002161.png)
+
+* Agentic RL场景下优化尾延迟非常重要，因为需要收集一批rollout再进行训练，很大的尾延迟会拖慢训练
+
+## Linux Cgroup
+
+* cgroup即control group，用来按组统计和控制资源用量的机制，或者说可以监控某一组进程的CPU和内存用量或者限制某一组进程的CPU和内存用量
